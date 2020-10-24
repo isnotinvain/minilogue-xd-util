@@ -60,6 +60,18 @@ class BoolConv(Conv):
   def to_raw(self, parsed):
     return int(parsed)
 
+def bit_flag_to_string(self, flags):
+  return ("{:016b}".format(flags))[::-1]
+
+class BitFlags(Conv):
+
+  def from_raw(self, raw):
+    bits = bit_flag_to_string
+    return [bool(int(x)) for x in bits]
+
+  def to_raw(self, parsed):
+    return int(parsed)
+
 HEADER_SCHEMA = ('magic','<4s')
 
 VOICE_MODES = ListConv(['none', 'arp', 'chord', 'unison','poly'])
@@ -82,6 +94,10 @@ DELAY_TYPES = ListConv(['stereo','mono','ping pong','hipass','tape','one tap','s
 REVERB_TYPES = ListConv(['hall','smooth','arena','plate','room','early ref','space','riser','submarine','horror','user1','user2','user3','user4','user5','user6','user7','user8'])
 CV_IN_MODES = ListConv(['modulation','cv_gate_+','cv_gate_-'])
 ASSIGN_PARAMETERS = ListConv(['gate_time','portamento','v_m_depth','vco_1_pitch','vco_1_shape','vco_2_pitch','vco_2_shape','cross_mod','multi_shape','vco_1_level','vco_2_level','multi_level','cutoff','resonance','a_eg_attack','a_eg_decay','a_eg_sustain','a_eg_release','eg_attack','eg_decay','eg_int','lfo_rate','lfo_int','mod_fx_speed','mod_fx_depth','reverb_time','reverb_depth','delay_time','delay_depth'])
+MICRO_TUNING = DictConv({0 : 'equal_temp', 1 : 'pure_major', 2 : 'pure_minor', 3 : 'pythagorean', 4 : 'werckmeister', 5 : 'kirnburger', 6 : 'slendro', 7 : 'pelog', 8 : 'ionian', 9 : 'dorian', 10 : 'aeolian', 11 : 'major_penta', 12 : 'minor_penta', 13 : 'reverse', 14 : 'afx001', 15 : 'afx002', 16 : 'afx003', 17 : 'afx004', 18 : 'afx005', 19 : 'afx006', 128 : 'user_scale_1', 129 : 'user_scale_2', 130 : 'user_scale_3', 131 : 'user_scale_4', 132 : 'user_scale_5', 133 : 'user_scale_6', 134 : 'user_octave_1', 135 : 'user_octave_2', 136 : 'user_octave_3', 137 : 'user_octave_4', 138 : 'user_octave_5', 139 : 'user_octave_6'})
+LFO_TARGET_OSC = ListConv(['all','vco1+vco2','vco2','multi'])
+MULTI_ROUTING = ListConv(['pre_vcf', 'post_vcf'])
+PORTAMENTO_MODE = ListConv(["auto","on"])
 
 FILE_SCHEMA = [
   HEADER_SCHEMA,
@@ -99,13 +115,13 @@ FILE_SCHEMA = [
   ('vco_2_octave_feet','B', OCTAVE_FEET),
   ('vco_2_pitch','H'),
   ('vco_2_shape','H'),
-  ('sync','B', bool),
-  ('ring','B', bool),
+  ('sync','B', BoolConv()),
+  ('ring','B', BoolConv()),
   ('cross_mod_depth','H'),
   ('multi_type','B', MULTI_TYPES),
   ('multi_noise_type','B', NOISE_TYPES),
   ('multi_vpm_wave','B', VPM_WAVES),
-  ('multi_user_osc','B', lambda x: x + 1),
+  ('multi_user_osc','B', AddConv(1)),
   ('multi_shape_noise','H'),
   ('multi_shape_vpm','H'),
   ('multi_shape_user','H'),
@@ -132,54 +148,54 @@ FILE_SCHEMA = [
   ('lfo_rate','H'),
   ('lfo_int','H'),
   ('lfo_target','B', LFO_TARGETS),
-  ('mod_fx_on','B', bool),
+  ('mod_fx_on','B', BoolConv()),
   ('mod_fx_type','B', MOD_FX_TYPES),
   ('mod_fx_chorus','B', CHORUS_TYPES),
   ('mod_fx_ensemble','B', ENSEMBLE_TYPES),
   ('mod_fx_phaser','B', PHASER_TYPES),
   ('mod_fx_flanger','B', FLANGER_TYPES),
-  ('mod_fx_user','B', lambda x: x + 1),
+  ('mod_fx_user','B', AddConv(1)),
   ('mod_fx_time','H', ),
   ('mod_fx_depth','H'),
-  ('delay_on','B', bool),
+  ('delay_on','B', BoolConv()),
   ('delay_type','B', DELAY_TYPES),
   ('delay_time','H'),
   ('delay_depth','H'),
-  ('reverb_fx_on','B', bool),
+  ('reverb_fx_on','B', BoolConv()),
   ('reverb_type','B', REVERB_TYPES),
   ('reverb_time','H'),
   ('reverb_depth','H'),
   ('x+_bend_range','B'),
-  ('x-_bend_range','B', lambda x: -x),
+  ('x-_bend_range','B', MulConv(-1)),
   ('y+_assign','B', ASSIGN_PARAMETERS),
-  ('y+_range','B', lambda x : x - 100),
+  ('y+_range','B', AddConv(-100)),
   ('y-_assign','B', ASSIGN_PARAMETERS),
-  ('y-_range','B', lambda x : x - 100),
+  ('y-_range','B', AddConv(-100)),
   ('cv_in_mode','B', CV_IN_MODES),
   ('cv_in1_assign','B', ASSIGN_PARAMETERS),
-  ('cv_in1_range','B', ),
-  ('cv_in2_assign','B'),
-  ('cv_in2_range','B'),
-  ('micro_tuning','B'),
+  ('cv_in1_range','B', AddConv(-100)),
+  ('cv_in2_assign','B', ASSIGN_PARAMETERS),
+  ('cv_in2_range','B', AddConv(-100)),
+  ('micro_tuning','B', MICRO_TUNING),
   ('scale_key','B'),
   ('program_tuning','B'),
-  ('lfo_key_sync','B'),
-  ('lfo_voice_sync','B'),
-  ('lfo_target_osc','B'),
+  ('lfo_key_sync','B', BoolConv()),
+  ('lfo_voice_sync','B', BoolConv()),
+  ('lfo_target_osc','B', LFO_TARGET_OSC),
   ('cutoff_velocity','B'),
   ('amp_velocity','B'),
-  ('multi_octave','B'),
-  ('multi_routing','B'),
-  ('eg_legato','B'),
-  ('portamento_mode','B'),
-  ('portamento_bpm_sync','B'),
+  ('multi_octave','B', OCTAVE_FEET),
+  ('multi_routing','B', MULTI_ROUTING),
+  ('eg_legato_on','B', BoolConv()),
+  ('portamento_mode','B', PORTAMENTO_MODE),
+  ('portamento_bpm_sync_on','B', BoolConv()),
   ('program_level','B'),
-  ('vpm_param1','B'),
-  ('vpm_param2','B'),
-  ('vpm_param3','B'),
-  ('vpm_param4','B'),
-  ('vpm_param5','B'),
-  ('vpm_param6','B'),
+  ('vpm_param1','B', AddConv(-100)),
+  ('vpm_param2','B', AddConv(-100)),
+  ('vpm_param3','B', AddConv(-100)),
+  ('vpm_param4','B', AddConv(-100)),
+  ('vpm_param5','B', AddConv(-100)),
+  ('vpm_param6','B', AddConv(-100)),
   ('user_param1','B'),
   ('user_param2','B'),
   ('user_param3','B'),
@@ -187,13 +203,13 @@ FILE_SCHEMA = [
   ('user_param5','B'),
   ('user_param6','B'),
   ('user_param_type','H'),
-  ('program_transpose','B'),
+  ('program_transpose','B', AddConv(-13)),
   ('delay_dry_wet','H'),
   ('reverb_dry_wet','H'),
-  ('midi_after_touch_assign','B'),
+  ('midi_after_touch_assign','B', ASSIGN_PARAMETERS),
   ('pred','4s'),
   ('sq','2s'),
-  ('active_step_off_on_steps_1_16','H'),
+  ('active_step_off_on_steps_1_16','H'), # TODO
   ('bpm','H'),
   ('step_length','B'),
   ('step_resolution','B'),
@@ -286,41 +302,6 @@ MOTION_PARAMETERS = {
   129 : 'gate_time'
 }
 
-MICRO_TUNING = {
-    0 : 'equal_temp',
-    1 : 'pure_major',
-    2 : 'pure_minor',
-    3 : 'pythagorean',
-    4 : 'werckmeister',
-    5 : 'kirnburger',
-    6 : 'slendro',
-    7 : 'pelog',
-    8 : 'ionian',
-    9 : 'dorian',
-   10 : 'aeolian',
-   11 : 'major_penta',
-   12 : 'minor_penta',
-   13 : 'reverse',
-   14 : 'afx001',
-   15 : 'afx002',
-   16 : 'afx003',
-   17 : 'afx004',
-   18 : 'afx005',
-   19 : 'afx006',
-  128 : 'user_scale_1',
-  129 : 'user_scale_2',
-  130 : 'user_scale_3',
-  131 : 'user_scale_4',
-  132 : 'user_scale_5',
-  133 : 'user_scale_6',
-  134 : 'user_octave_1',
-  135 : 'user_octave_2',
-  136 : 'user_octave_3',
-  137 : 'user_octave_4',
-  138 : 'user_octave_5',
-  139 : 'user_octave_6'
-}
-
 STEP_EVENT_SCHEMA = [
   ('note_1', '<b'),
   ('note_2', 'b'),
@@ -391,14 +372,9 @@ def unpack(binary, structure):
     val = raw
 
     if len(structure[i]) == 3:
-      # apply transform
-      transformer = structure[i][2]
-      if hasattr(transformer, '__getitem__'):
-        # this is a list actually, use list index
-        val = transformer[raw]
-      else:
-        # should be function, invoke it
-        val = transformer(raw)
+      # apply conv
+      conv = structure[i][2]
+      val = conv.from_raw(raw)
 
     res[name] = val
 
