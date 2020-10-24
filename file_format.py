@@ -1,5 +1,10 @@
-file_schema = [
-  ('magic','<4s'),
+import struct
+import collections
+
+HEADER_SCHEMA = ('magic','<4s')
+
+FILE_SCHEMA = [
+  HEADER_SCHEMA,
   ('program_name','12s'),
   ('octave','B'),
   ('portamento','B'),
@@ -144,7 +149,7 @@ file_schema = [
   ('arp_rate','B')
 ]
 
-motion_parameters = {
+MOTION_PARAMETERS = {
     0 : 'none',
    15 : 'portamento',
    16 : 'voice_mode_depth',
@@ -201,7 +206,7 @@ motion_parameters = {
   129 : 'gate_time'
 }
 
-assign_parameters = {
+ASSIGN_PARAMETERS = {
     0 : 'gate_time',
     1 : 'portamento',
     2 : 'v_m_depth',
@@ -233,7 +238,7 @@ assign_parameters = {
    28 : 'delay_depth'
 }
 
-micro_tuning = {
+MICRO_TUNING = {
     0 : 'equal_temp',
     1 : 'pure_major',
     2 : 'pure_minor',
@@ -266,59 +271,70 @@ micro_tuning = {
   137 : 'user_octave_4',
   138 : 'user_octave_5',
   139 : 'user_octave_6'
-  }
+}
 
-  step_event_structure = [
-    ('note_1', '<b'),
-    ('note_2', 'b'),
-    ('note_3', 'b'),
-    ('note_4', 'b'),
-    ('note_5', 'b'),
-    ('note_6', 'b'),
-    ('note_7', 'b'),
-    ('note_8', 'b'),
-    ('velocity_1', 'b'),
-    ('velocity_2', 'b'),
-    ('velocity_3', 'b'),
-    ('velocity_4', 'b'),
-    ('velocity_5', 'b'),
-    ('velocity_6', 'b'),
-    ('velocity_7', 'b'),
-    ('velocity_8', 'b'),
-    ('gate_time_1', 'b'),
-    ('gate_time_2', 'b'),
-    ('gate_time_3', 'b'),
-    ('gate_time_4', 'b'),
-    ('gate_time_5', 'b'),
-    ('gate_time_6', 'b'),
-    ('gate_time_7', 'b'),
-    ('gate_time_8', 'b'),
-    ('motion_slot_1_data_1', 'b'),
-    ('motion_slot_1_data_2','b'),
-    ('motion_slot_1_data_3','b'),
-    ('motion_slot_1_data_4','b'),
-    ('motion_slot_1_data_5','b'),
-    ('motion_slot_1_data_6','b'),
-    ('motion_slot_1_data_7','b'),
-    ('motion_slot_2_data_1','b'),
-    ('motion_slot_2_data_2','b'),
-    ('motion_slot_2_data_3','b'),
-    ('motion_slot_2_data_4','b'),
-    ('motion_slot_2_data_5','b'),
-    ('motion_slot_2_data_6','b'),
-    ('motion_slot_2_data_7','b'),
-    ('motion_slot_3_data_1','b'),
-    ('motion_slot_3_data_2','b'),
-    ('motion_slot_3_data_3','b'),
-    ('motion_slot_3_data_4','b'),
-    ('motion_slot_3_data_5','b'),
-    ('motion_slot_3_data_6','b'),
-    ('motion_slot_3_data_7','b'),
-    ('motion_slot_4_data_1','b'),
-    ('motion_slot_4_data_2','b'),
-    ('motion_slot_4_data_3','b'),
-    ('motion_slot_4_data_4','b'),
-    ('motion_slot_4_data_5','b'),
-    ('motion_slot_4_data_6','b'),
-    ('motion_slot_4_data_7','b'),
+STEP_EVENT_SCHEMA = [
+  ('note_1', '<b'),
+  ('note_2', 'b'),
+  ('note_3', 'b'),
+  ('note_4', 'b'),
+  ('note_5', 'b'),
+  ('note_6', 'b'),
+  ('note_7', 'b'),
+  ('note_8', 'b'),
+  ('velocity_1', 'b'),
+  ('velocity_2', 'b'),
+  ('velocity_3', 'b'),
+  ('velocity_4', 'b'),
+  ('velocity_5', 'b'),
+  ('velocity_6', 'b'),
+  ('velocity_7', 'b'),
+  ('velocity_8', 'b'),
+  ('gate_time_1', 'b'),
+  ('gate_time_2', 'b'),
+  ('gate_time_3', 'b'),
+  ('gate_time_4', 'b'),
+  ('gate_time_5', 'b'),
+  ('gate_time_6', 'b'),
+  ('gate_time_7', 'b'),
+  ('gate_time_8', 'b'),
+  ('motion_slot_1_data_1', 'b'),
+  ('motion_slot_1_data_2','b'),
+  ('motion_slot_1_data_3','b'),
+  ('motion_slot_1_data_4','b'),
+  ('motion_slot_1_data_5','b'),
+  ('motion_slot_1_data_6','b'),
+  ('motion_slot_1_data_7','b'),
+  ('motion_slot_2_data_1','b'),
+  ('motion_slot_2_data_2','b'),
+  ('motion_slot_2_data_3','b'),
+  ('motion_slot_2_data_4','b'),
+  ('motion_slot_2_data_5','b'),
+  ('motion_slot_2_data_6','b'),
+  ('motion_slot_2_data_7','b'),
+  ('motion_slot_3_data_1','b'),
+  ('motion_slot_3_data_2','b'),
+  ('motion_slot_3_data_3','b'),
+  ('motion_slot_3_data_4','b'),
+  ('motion_slot_3_data_5','b'),
+  ('motion_slot_3_data_6','b'),
+  ('motion_slot_3_data_7','b'),
+  ('motion_slot_4_data_1','b'),
+  ('motion_slot_4_data_2','b'),
+  ('motion_slot_4_data_3','b'),
+  ('motion_slot_4_data_4','b'),
+  ('motion_slot_4_data_5','b'),
+  ('motion_slot_4_data_6','b'),
+  ('motion_slot_4_data_7','b'),
 ]
+
+def unpack(binary, structure):
+  format_string = ''.join(map(lambda x: x[1], structure))
+  unpacked = struct.unpack(format_string, binary)
+  names = map(lambda x : x[0], structure)
+
+  if len(unpacked) != len(names):
+    raise ValueError("Expected to get back %d elements from struct.unpack but got %d" % (len(names), len(unpacked)))
+
+  return collections.OrderedDict(zip(names, unpacked))
+
