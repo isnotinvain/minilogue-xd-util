@@ -1,44 +1,124 @@
 import struct
 import collections
 
+# SCHEMA rows are either:
+# (name, format string)
+# (name, format string, raw => nicer value)
+
+class Conv(object):
+  def from_raw(self, raw):
+    pass
+
+  def to_raw(self, parsed):
+    pass
+
+class ListConv(Conv):
+  def __init__(self, d):
+    self.d = d
+
+  def from_raw(self, raw):
+    return self.d[raw]
+
+  def to_raw(self, parsed):
+    return self.index(parsed)
+
+class DictConv(Conv):
+  def __init__(self, d):
+    self.d = d
+    self.d_inv = {v: k for k, v in d.iteritems()}
+
+  def from_raw(self, raw):
+    return self.d[raw]
+
+  def to_raw(self, parsed):
+    return self.d_inv[parsed]
+
+class AddConv(Conv):
+  def __init__(self, amount):
+    self.amount = amount
+
+  def from_raw(self, raw):
+    return raw + self.amount
+
+  def to_raw(self, parsed):
+    return parsed - self.amount
+
+class MulConv(Conv):
+  def __init__(self, amount):
+    self.amount = amount
+
+  def from_raw(self, raw):
+    return raw * self.amount
+
+  def to_raw(self, parsed):
+    return parsed / self.amount
+
+class BoolConv(Conv):
+  def from_raw(self, raw):
+    return bool(raw)
+
+  def to_raw(self, parsed):
+    return int(parsed)
+
 HEADER_SCHEMA = ('magic','<4s')
+
+VOICE_MODES = ListConv(['none', 'arp', 'chord', 'unison','poly'])
+VCO_WAVES = ListConv(['sqr', 'tri', 'saw'])
+OCTAVE_FEET = ListConv([16, 8, 4, 2])
+MULTI_TYPES = ListConv(['noise','vpm','user'])
+NOISE_TYPES = ListConv(['high','low','peak','decim'])
+VPM_WAVES = ListConv(['sin1','sin2','sin3','sin4','saw1','saw2','squ1','squ2','fat1','fat2','air1','air2','decay1','decay2','creep','throat'])
+DRIVE = ListConv([0, 50, 100])
+TRACK = ListConv([0, 50, 100])
+EG_TARGETS = ListConv(['cutoff', 'pitch2', 'pitch'])
+LFO_MODES = ListConv(['1-shot','normal','bpm'])
+LFO_TARGETS = ListConv(['cutoff', 'shape', 'pitch'])
+MOD_FX_TYPES = ListConv(['chorus','ensemble','phaser','flanger','user'])
+CHORUS_TYPES = ListConv(['stereo','light','deep','triphase','harmonic','mono','feedback','vibrato'])
+ENSEMBLE_TYPES = ListConv(['stereo','light','mono'])
+PHASER_TYPES = ListConv(['stereo','fast','orange','small','small reso','black','formant','twinkle'])
+FLANGER_TYPES = ListConv(['stereo','light','mono','high sweep','mid sweep','pan sweep','mono sweep','triphase'])
+DELAY_TYPES = ListConv(['stereo','mono','ping pong','hipass','tape','one tap','stereo bpm','mono bpm','ping bpm','hipass bpm','tape bpm','doubling','user1','user2','user3','user4','user5','user6','user7','user8'])
+REVERB_TYPES = ListConv(['hall','smooth','arena','plate','room','early ref','space','riser','submarine','horror','user1','user2','user3','user4','user5','user6','user7','user8'])
+CV_IN_MODES = ListConv(['modulation','cv_gate_+','cv_gate_-'])
+ASSIGN_PARAMETERS = ListConv(['gate_time','portamento','v_m_depth','vco_1_pitch','vco_1_shape','vco_2_pitch','vco_2_shape','cross_mod','multi_shape','vco_1_level','vco_2_level','multi_level','cutoff','resonance','a_eg_attack','a_eg_decay','a_eg_sustain','a_eg_release','eg_attack','eg_decay','eg_int','lfo_rate','lfo_int','mod_fx_speed','mod_fx_depth','reverb_time','reverb_depth','delay_time','delay_depth'])
 
 FILE_SCHEMA = [
   HEADER_SCHEMA,
   ('program_name','12s'),
-  ('octave','B'),
+  ('octave','B', AddConv(2)),
   ('portamento','B'),
-  ('key_trig','B'),
+  ('key_trig','B', BoolConv()),
   ('voice_mode_depth','H'),
-  ('voice_mode_type','B'),
-  ('vco_1_wave','B'),
-  ('vco_1_octave','B'),
+  ('voice_mode_type','B', VOICE_MODES),
+  ('vco_1_wave','B', VCO_WAVES),
+  ('vco_1_octave_feet','B', OCTAVE_FEET),
   ('vco_1_pitch','H'),
   ('vco_1_shape','H'),
-  ('vco_2_wave','B'),
-  ('vco_2_octave','B'),
+  ('vco_2_wave','B', VCO_WAVES),
+  ('vco_2_octave_feet','B', OCTAVE_FEET),
   ('vco_2_pitch','H'),
   ('vco_2_shape','H'),
-  ('sync','B'),
-  ('ring','B'),
+  ('sync','B', bool),
+  ('ring','B', bool),
   ('cross_mod_depth','H'),
-  ('multi_type','B'),
-  ('select_noise','B'),
-  ('select_vpm','B'),
-  ('select_user','B'),
-  ('shape_noise','H'),
-  ('shape_vpm','H'),
-  ('shape_user','H'),
-  ('shift_shape_noise','H'),
-  ('shift_shape_vpm','H'),
-  ('shift_shape_user','H'),
+  ('multi_type','B', MULTI_TYPES),
+  ('multi_noise_type','B', NOISE_TYPES),
+  ('multi_vpm_wave','B', VPM_WAVES),
+  ('multi_user_osc','B', lambda x: x + 1),
+  ('multi_shape_noise','H'),
+  ('multi_shape_vpm','H'),
+  ('multi_shape_user','H'),
+  ('multi_shift_shape_noise','H'),
+  ('multi_shift_shape_vpm','H'),
+  ('multi_shift_shape_user_osc','H'),
   ('vco_1_level','H'),
   ('vco_2_level','H'),
   ('multi_level','H'),
   ('cutoff','H'),
   ('resonance','H'),
-  ('cutoff_drive','B'),
-  ('cutoff_keyboard_track','B'),
+  ('drive','B', DRIVE),
+  ('keyboard_track','B', TRACK),
   ('amp_eg_attack','H'),
   ('amp_eg_decay','H'),
   ('amp_eg_sustain','H'),
@@ -46,38 +126,38 @@ FILE_SCHEMA = [
   ('eg_attack','H'),
   ('eg_decay','H'),
   ('eg_int','H'),
-  ('eg_target','B'),
-  ('lfo_wave','B'),
-  ('lfo_mode','B'),
+  ('eg_target','B', EG_TARGETS),
+  ('lfo_wave','B', VCO_WAVES),
+  ('lfo_mode','B', LFO_MODES),
   ('lfo_rate','H'),
   ('lfo_int','H'),
-  ('lfo_target','B'),
-  ('mod_fx_on_off','B'),
-  ('mod_fx_type','B'),
-  ('mod_fx_chorus','B'),
-  ('mod_fx_ensemble','B'),
-  ('mod_fx_phaser','B'),
-  ('mod_fx_flanger','B'),
-  ('mod_fx_user','B'),
-  ('mod_fx_time','H'),
+  ('lfo_target','B', LFO_TARGETS),
+  ('mod_fx_on','B', bool),
+  ('mod_fx_type','B', MOD_FX_TYPES),
+  ('mod_fx_chorus','B', CHORUS_TYPES),
+  ('mod_fx_ensemble','B', ENSEMBLE_TYPES),
+  ('mod_fx_phaser','B', PHASER_TYPES),
+  ('mod_fx_flanger','B', FLANGER_TYPES),
+  ('mod_fx_user','B', lambda x: x + 1),
+  ('mod_fx_time','H', ),
   ('mod_fx_depth','H'),
-  ('delay_fx_on_off','B'),
-  ('delay_sub_type','B'),
+  ('delay_on','B', bool),
+  ('delay_type','B', DELAY_TYPES),
   ('delay_time','H'),
   ('delay_depth','H'),
-  ('reverb_fx_on_off','B'),
-  ('reverb_sub_type','B'),
+  ('reverb_fx_on','B', bool),
+  ('reverb_type','B', REVERB_TYPES),
   ('reverb_time','H'),
   ('reverb_depth','H'),
   ('x+_bend_range','B'),
-  ('x-_bend_range','B'),
-  ('y+_assign','B'),
-  ('y+_range','B'),
-  ('y-_assign','B'),
-  ('y-_range','B'),
-  ('cv_in_mode','B'),
-  ('cv_in1_assign','B'),
-  ('cv_in1_range','B'),
+  ('x-_bend_range','B', lambda x: -x),
+  ('y+_assign','B', ASSIGN_PARAMETERS),
+  ('y+_range','B', lambda x : x - 100),
+  ('y-_assign','B', ASSIGN_PARAMETERS),
+  ('y-_range','B', lambda x : x - 100),
+  ('cv_in_mode','B', CV_IN_MODES),
+  ('cv_in1_assign','B', ASSIGN_PARAMETERS),
+  ('cv_in1_range','B', ),
   ('cv_in2_assign','B'),
   ('cv_in2_range','B'),
   ('micro_tuning','B'),
@@ -206,38 +286,6 @@ MOTION_PARAMETERS = {
   129 : 'gate_time'
 }
 
-ASSIGN_PARAMETERS = {
-    0 : 'gate_time',
-    1 : 'portamento',
-    2 : 'v_m_depth',
-    3 : 'vco_1_pitch',
-    4 : 'vco_1_shape',
-    5 : 'vco_2_pitch',
-    6 : 'vco_2_shape',
-    7 : 'cross_mod',
-    8 : 'multi_shape',
-    9 : 'vco_1_level',
-   10 : 'vco_2_level',
-   11 : 'multi_level',
-   12 : 'cutoff',
-   13 : 'resonance',
-   14 : 'a_eg_attack',
-   15 : 'a_eg_decay',
-   16 : 'a_eg_sustain',
-   17 : 'a_eg_release',
-   18 : 'eg_attack',
-   19 : 'eg_decay',
-   20 : 'eg_int',
-   21 : 'lfo_rate',
-   22 : 'lfo_int',
-   23 : 'mod_fx_speed',
-   24 : 'mod_fx_depth',
-   25 : 'reverb_time',
-   26 : 'reverb_depth',
-   27 : 'delay_time',
-   28 : 'delay_depth'
-}
-
 MICRO_TUNING = {
     0 : 'equal_temp',
     1 : 'pure_major',
@@ -331,10 +379,28 @@ STEP_EVENT_SCHEMA = [
 def unpack(binary, structure):
   format_string = ''.join(map(lambda x: x[1], structure))
   unpacked = struct.unpack(format_string, binary)
-  names = map(lambda x : x[0], structure)
 
-  if len(unpacked) != len(names):
-    raise ValueError("Expected to get back %d elements from struct.unpack but got %d" % (len(names), len(unpacked)))
+  if len(unpacked) != len(structure):
+    raise ValueError("Expected to get back %d elements from struct.unpack but got %d" % (len(structure), len(unpacked)))
 
-  return collections.OrderedDict(zip(names, unpacked))
+  res = collections.OrderedDict()
+
+  for i,raw in enumerate(unpacked):
+    name = structure[i][0]
+
+    val = raw
+
+    if len(structure[i]) == 3:
+      # apply transform
+      transformer = structure[i][2]
+      if hasattr(transformer, '__getitem__'):
+        # this is a list actually, use list index
+        val = transformer[raw]
+      else:
+        # should be function, invoke it
+        val = transformer(raw)
+
+    res[name] = val
+
+  return res
 
