@@ -60,17 +60,38 @@ class BoolConv(Conv):
   def to_raw(self, parsed):
     return int(parsed)
 
-def bit_flag_to_string(self, flags):
-  return ("{:016b}".format(flags))[::-1]
-
 class BitFlags(Conv):
 
   def from_raw(self, raw):
-    bits = bit_flag_to_string
+    # to binary string, then reverse
+    bits = ("{:016b}".format(raw))[::-1]
     return [bool(int(x)) for x in bits]
 
   def to_raw(self, parsed):
-    return int(parsed)
+    # bool to bit to string, reversed again
+    bits = [str(int(x)) for x in parsed][::-1]
+    bits_str = ''.join(bits)
+    return int(bits_str, 2) # parse binary string
+
+MOTION_PARAMETERS = DictConv({0 : 'none', 15 : 'portamento', 16 : 'voice_mode_depth', 17 : 'voice_mode_type', 18 : 'vco_1_wave', 19 : 'vco_1_octave', 20 : 'vco_1_pitch', 21 : 'vco_1_shape', 22 : 'vco_2_wave', 23 : 'vco_2_octave', 24 : 'vco_2_pitch', 25 : 'vco_2_shape', 26 : 'sync', 27 : 'ring', 28 : 'cross_mod_depth', 29 : 'multi_engine_type', 30 : 'multi_engine_noise_type', 31 : 'multi_engine_vpm_type', 33 : 'multi_shape_noise', 34 : 'multi_shape_vpm', 35 : 'multi_shape_user', 36 : 'multi_shift_shape_noise', 37 : 'multi_shift_shape_vpm', 38 : 'multi_shift_shape_user', 39 : 'vco_1_level', 40 : 'vco_2_level', 41 : 'multi_engine_level', 42 : 'cutoff', 43 : 'resonance', 45 : 'keytrack', 46 : 'amp_eg_attack', 47 : 'amp_eg_decay', 48 : 'amp_eg_sustain', 49 : 'amp_eg_release', 50 : 'eg_attack', 51 : 'eg_decay', 52 : 'eg_int', 53 : 'eg_target', 54 : 'lfo_wave', 55 : 'lfo_mode', 56 : 'lfo_rate', 57 : 'lfo_int', 58 : 'lfo_target', 59 : 'mod_fx_on_off', 66 : 'mod_fx_time', 67 : 'mod_fx_depth', 68 : 'delay_on_off', 70 : 'delay_time', 71 : 'delay_depth', 72 : 'reverb_on_off', 74 : 'reverb_time', 75 : 'reverb_depth', 126 : 'pitch_bend', 129 : 'gate_time'})
+
+class MotionParameter(Conv):
+
+  def from_raw(self, raw):
+    param = MOTION_PARAMETERS.from_raw(raw >> 8)
+    motion_on = bool(raw & 1)
+    smooth_on = bool((raw & 2) >> 1)
+    return collections.OrderedDict([('parameter', param), ('motion_on', motion_on), ('smooth_on', smooth_on)])
+
+  def to_raw(self, parsed):
+    param = MOTION_PARAMETERS.ro_raw(parsed['parameter'])
+    motion_on = int(parsed['motion_on'])
+    smooth_on = int(parsed['smooth_on'])
+    raw = param << 8
+    raw = raw | motion_on
+    raw = raw | (smooth_on << 1)
+
+    return raw
 
 HEADER_SCHEMA = ('magic','<4s')
 
@@ -98,6 +119,8 @@ MICRO_TUNING = DictConv({0 : 'equal_temp', 1 : 'pure_major', 2 : 'pure_minor', 3
 LFO_TARGET_OSC = ListConv(['all','vco1+vco2','vco2','multi'])
 MULTI_ROUTING = ListConv(['pre_vcf', 'post_vcf'])
 PORTAMENTO_MODE = ListConv(["auto","on"])
+STEP_RESOLUTIONS = ListConv(["1/16","1/8","1/4","1/2","1/1"])
+
 
 FILE_SCHEMA = [
   HEADER_SCHEMA,
@@ -209,22 +232,22 @@ FILE_SCHEMA = [
   ('midi_after_touch_assign','B', ASSIGN_PARAMETERS),
   ('pred','4s'),
   ('sq','2s'),
-  ('active_step_off_on_steps_1_16','H'), # TODO
+  ('seq_active_steps','H', BitFlags()),
   ('bpm','H'),
-  ('step_length','B'),
-  ('step_resolution','B'),
-  ('swing','B'),
+  ('seq_step_length','B'),
+  ('seq_step_resolution','B', STEP_RESOLUTIONS),
+  ('swing','B', AddConv(-75)),
   ('default_gate_time','B'),
-  ('step_off_on_steps_1_16','H'),
-  ('step_motion_off_on_steps_1_16','H'),
-  ('motion_slot_1_parameter','H'),
-  ('motion_slot_2_parameter','H'),
-  ('motion_slot_3_parameter','H'),
-  ('motion_slot_4_parameter','H'),
-  ('motion_slot_1_off_on_steps_1_16','H'),
-  ('motion_slot_2_off_on_steps_1_16','H'),
-  ('motion_slot_3_off_on_steps_1_16','H'),
-  ('motion_slot_4_off_on_steps_1_16','H'),
+  ('seq_steps_on','H', BitFlags()),
+  ('seq_steps_motion_on','H', BitFlags()),
+  ('seq_motion_1_param','H', MotionParameter()),
+  ('seq_motion_2_param','H', MotionParameter()),
+  ('seq_motion_3_param','H', MotionParameter()),
+  ('seq_motion_4_param','H', MotionParameter()),
+  ('seq_steps_motion_1_on','H', BitFlags()),
+  ('seq_steps_motion_2_on','H', BitFlags()),
+  ('seq_steps_motion_3_on','H', BitFlags()),
+  ('seq_steps_motion_4_on','H', BitFlags()),
   ('step_1_event_data','52s'),
   ('step_2_event_data','52s'),
   ('step_3_event_data','52s'),
@@ -244,63 +267,6 @@ FILE_SCHEMA = [
   ('arp_gate_time','B'),
   ('arp_rate','B')
 ]
-
-MOTION_PARAMETERS = {
-    0 : 'none',
-   15 : 'portamento',
-   16 : 'voice_mode_depth',
-   17 : 'voice_mode_type',
-   18 : 'vco_1_wave',
-   19 : 'vco_1_octave',
-   20 : 'vco_1_pitch',
-   21 : 'vco_1_shape',
-   22 : 'vco_2_wave',
-   23 : 'vco_2_octave',
-   24 : 'vco_2_pitch',
-   25 : 'vco_2_shape',
-   26 : 'sync',
-   27 : 'ring',
-   28 : 'cross_mod_depth',
-   29 : 'multi_engine_type',
-   30 : 'multi_engine_noise_type',
-   31 : 'multi_engine_vpm_type',
-   33 : 'multi_shape_noise',
-   34 : 'multi_shape_vpm',
-   35 : 'multi_shape_user',
-   36 : 'multi_shift_shape_noise',
-   37 : 'multi_shift_shape_vpm',
-   38 : 'multi_shift_shape_user',
-   39 : 'vco_1_level',
-   40 : 'vco_2_level',
-   41 : 'multi_engine_level',
-   42 : 'cutoff',
-   43 : 'resonance',
-   45 : 'keytrack',
-   46 : 'amp_eg_attack',
-   47 : 'amp_eg_decay',
-   48 : 'amp_eg_sustain',
-   49 : 'amp_eg_release',
-   50 : 'eg_attack',
-   51 : 'eg_decay',
-   52 : 'eg_int',
-   53 : 'eg_target',
-   54 : 'lfo_wave',
-   55 : 'lfo_mode',
-   56 : 'lfo_rate',
-   57 : 'lfo_int',
-   58 : 'lfo_target',
-   59 : 'mod_fx_on_off',
-   66 : 'mod_fx_time',
-   67 : 'mod_fx_depth',
-   68 : 'delay_on_off',
-   70 : 'delay_time',
-   71 : 'delay_depth',
-   72 : 'reverb_on_off',
-   74 : 'reverb_time',
-   75 : 'reverb_depth',
-  126 : 'pitch_bend',
-  129 : 'gate_time'
-}
 
 STEP_EVENT_SCHEMA = [
   ('note_1', '<b'),
