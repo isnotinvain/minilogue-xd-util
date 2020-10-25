@@ -1,3 +1,9 @@
+'''
+Serializes and deserializes the binary contents of a minilogue xd prog_bin file
+Much of this file is taken and modified from https://gist.github.com/gekart/b187d3c16e6160571ccfcf6c597fea3f
+Thank you @gekart!
+'''
+
 import collections, struct, traceback
 from conv import *
 
@@ -116,7 +122,7 @@ STEP_EVENT_SCHEMA = [
 
 FILE_SCHEMA = [
   HEADER_SCHEMA,
-  ('program_name','12s'),
+  ('name','12s'),
   ('octave','B', AddConv(2)),
   ('portamento','B'),
   ('key_trig','B', BoolConv()),
@@ -311,7 +317,7 @@ def assert_header(file_content):
   if magic['magic'] != 'PROG':
     raise ValueError('File does not begin with magic header PROG')
 
-def parse(file_content):
+def deserialize(file_content):
 
   # first look for magic header as sanity check
   assert_header(file_content)
@@ -324,5 +330,5 @@ def parse(file_content):
 
   return unpacked
 
-def write(parsed):
+def serialize(parsed):
   return pack(parsed, FILE_SCHEMA)
