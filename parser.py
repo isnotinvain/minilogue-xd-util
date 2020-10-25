@@ -12,7 +12,7 @@ class MotionParameter(Conv):
     return collections.OrderedDict([('parameter', param), ('motion_on', motion_on), ('smooth_on', smooth_on)])
 
   def to_raw(self, parsed):
-    param = MOTION_PARAMETERS.ro_raw(parsed['parameter'])
+    param = MOTION_PARAMETERS.to_raw(parsed['parameter'])
     motion_on = int(parsed['motion_on'])
     smooth_on = int(parsed['smooth_on'])
     raw = param << 8
@@ -29,7 +29,7 @@ class NestedConv(Conv):
     return unpack(raw, self.structure)
 
   def to_raw(self, parsed):
-    raise ValueError('Not implemented yet')
+    return pack(parsed, self.structure)
 
 HEADER_SCHEMA = ('magic','<4s')
 
@@ -283,6 +283,24 @@ def unpack(binary, structure):
 
   return res
 
+def pack(parsed, structure):
+  format_string = ''.join(map(lambda x: x[1], structure))
+
+  raw_values = []
+
+  for field in structure:
+    name = field[0]
+    p = parsed[name]
+
+    if len(field) == 3:
+      # invert conv
+      conv = field[2]
+      p = conv.to_raw(p)
+
+    raw_values.append(p)
+
+  return struct.pack(format_string, *raw_values)
+
 def assert_header(file_content):
   try:
     magic = unpack(file_content[:4], [HEADER_SCHEMA])
@@ -305,3 +323,6 @@ def parse(file_content):
     raise ValueError('This doesn\'t look like a valid file, magic PROG header incorrect')
 
   return unpacked
+
+def write(parsed):
+  return pack(parsed, FILE_SCHEMA)

@@ -18,5 +18,14 @@ except zipfile.BadZipfile:
 with zip_file as file:
   file_content = file.read('Prog_%03d.prog_bin'  % (0,))
   res = parser.parse(file_content)
+
+  print "File contents:"
   for k,v in res.iteritems():
     print "%s => %s" % (k, v)
+
+  packed = parser.write(res)
+
+  if packed != file_content:
+    print "Files don't match"
+  else:
+    print "Files match!"

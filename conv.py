@@ -7,14 +7,14 @@ class Conv(object):
     pass
 
 class ListConv(Conv):
-  def __init__(self, d):
-    self.d = d
+  def __init__(self, items):
+    self.items = items
 
   def from_raw(self, raw):
-    return self.d[raw]
+    return self.items[raw]
 
   def to_raw(self, parsed):
-    return self.index(parsed)
+    return self.items.index(parsed)
 
 class DictConv(Conv):
   def __init__(self, d):
