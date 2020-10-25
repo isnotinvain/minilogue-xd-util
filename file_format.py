@@ -1,10 +1,6 @@
 import struct
 import collections
 
-# SCHEMA rows are either:
-# (name, format string)
-# (name, format string, raw => nicer value)
-
 class Conv(object):
   def from_raw(self, raw):
     pass
@@ -93,6 +89,16 @@ class MotionParameter(Conv):
 
     return raw
 
+class NestedConv(Conv):
+  def __init__(self, structure):
+    self.structure = structure
+
+  def from_raw(self, raw):
+    return unpack(raw, self.structure)
+
+  def to_raw(self, parsed):
+    raise ValueError("Not implemented yet")
+
 HEADER_SCHEMA = ('magic','<4s')
 
 VOICE_MODES = ListConv(['none', 'arp', 'chord', 'unison','poly'])
@@ -121,6 +127,60 @@ MULTI_ROUTING = ListConv(['pre_vcf', 'post_vcf'])
 PORTAMENTO_MODE = ListConv(["auto","on"])
 STEP_RESOLUTIONS = ListConv(["1/16","1/8","1/4","1/2","1/1"])
 
+STEP_EVENT_SCHEMA = [
+  ("note_1", "<B"),
+  ("note_2", "B"),
+  ("note_3", "B"),
+  ("note_4", "B"),
+  ("note_5", "B"),
+  ("note_6", "B"),
+  ("note_7", "B"),
+  ("note_8", "B"),
+  ("velocity_1", "B"),
+  ("velocity_2", "B"),
+  ("velocity_3", "B"),
+  ("velocity_4", "B"),
+  ("velocity_5", "B"),
+  ("velocity_6", "B"),
+  ("velocity_7", "B"),
+  ("velocity_8", "B"),
+  ("gate_time_1", "B"),
+  ("gate_time_2", "B"),
+  ("gate_time_3", "B"),
+  ("gate_time_4", "B"),
+  ("gate_time_5", "B"),
+  ("gate_time_6", "B"),
+  ("gate_time_7", "B"),
+  ("gate_time_8", "B"),
+  ("motion_slot_1_data_1", "B"),
+  ("motion_slot_1_data_2", "B"),
+  ("motion_slot_1_data_3", "B"),
+  ("motion_slot_1_data_4", "B"),
+  ("motion_slot_1_data_5", "B"),
+  ("motion_slot_1_data_6", "B"),
+  ("motion_slot_1_data_7", "B"),
+  ("motion_slot_2_data_1", "B"),
+  ("motion_slot_2_data_2", "B"),
+  ("motion_slot_2_data_3", "B"),
+  ("motion_slot_2_data_4", "B"),
+  ("motion_slot_2_data_5", "B"),
+  ("motion_slot_2_data_6", "B"),
+  ("motion_slot_2_data_7", "B"),
+  ("motion_slot_3_data_1", "B"),
+  ("motion_slot_3_data_2", "B"),
+  ("motion_slot_3_data_3", "B"),
+  ("motion_slot_3_data_4", "B"),
+  ("motion_slot_3_data_5", "B"),
+  ("motion_slot_3_data_6", "B"),
+  ("motion_slot_3_data_7", "B"),
+  ("motion_slot_4_data_1", "B"),
+  ("motion_slot_4_data_2", "B"),
+  ("motion_slot_4_data_3", "B"),
+  ("motion_slot_4_data_4", "B"),
+  ("motion_slot_4_data_5", "B"),
+  ("motion_slot_4_data_6", "B"),
+  ("motion_slot_4_data_7", "B"),
+]
 
 FILE_SCHEMA = [
   HEADER_SCHEMA,
@@ -248,79 +308,24 @@ FILE_SCHEMA = [
   ('seq_steps_motion_2_on','H', BitFlags()),
   ('seq_steps_motion_3_on','H', BitFlags()),
   ('seq_steps_motion_4_on','H', BitFlags()),
-  ('step_1_event_data','52s'),
-  ('step_2_event_data','52s'),
-  ('step_3_event_data','52s'),
-  ('step_4_event_data','52s'),
-  ('step_5_event_data','52s'),
-  ('step_6_event_data','52s'),
-  ('step_7_event_data','52s'),
-  ('step_8_event_data','52s'),
-  ('step_9_event_data','52s'),
-  ('step_10_event_data','52s'),
-  ('step_11_event_data','52s'),
-  ('step_12_event_data','52s'),
-  ('step_13_event_data','52s'),
-  ('step_14_event_data','52s'),
-  ('step_15_event_data','52s'),
-  ('step_16_event_data','52s'),
+  ('step_1_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_2_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_3_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_4_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_5_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_6_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_7_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_8_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_9_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_10_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_11_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_12_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_13_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_14_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_15_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('step_16_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
   ('arp_gate_time','B'),
   ('arp_rate','B')
-]
-
-STEP_EVENT_SCHEMA = [
-  ('note_1', '<b'),
-  ('note_2', 'b'),
-  ('note_3', 'b'),
-  ('note_4', 'b'),
-  ('note_5', 'b'),
-  ('note_6', 'b'),
-  ('note_7', 'b'),
-  ('note_8', 'b'),
-  ('velocity_1', 'b'),
-  ('velocity_2', 'b'),
-  ('velocity_3', 'b'),
-  ('velocity_4', 'b'),
-  ('velocity_5', 'b'),
-  ('velocity_6', 'b'),
-  ('velocity_7', 'b'),
-  ('velocity_8', 'b'),
-  ('gate_time_1', 'b'),
-  ('gate_time_2', 'b'),
-  ('gate_time_3', 'b'),
-  ('gate_time_4', 'b'),
-  ('gate_time_5', 'b'),
-  ('gate_time_6', 'b'),
-  ('gate_time_7', 'b'),
-  ('gate_time_8', 'b'),
-  ('motion_slot_1_data_1', 'b'),
-  ('motion_slot_1_data_2','b'),
-  ('motion_slot_1_data_3','b'),
-  ('motion_slot_1_data_4','b'),
-  ('motion_slot_1_data_5','b'),
-  ('motion_slot_1_data_6','b'),
-  ('motion_slot_1_data_7','b'),
-  ('motion_slot_2_data_1','b'),
-  ('motion_slot_2_data_2','b'),
-  ('motion_slot_2_data_3','b'),
-  ('motion_slot_2_data_4','b'),
-  ('motion_slot_2_data_5','b'),
-  ('motion_slot_2_data_6','b'),
-  ('motion_slot_2_data_7','b'),
-  ('motion_slot_3_data_1','b'),
-  ('motion_slot_3_data_2','b'),
-  ('motion_slot_3_data_3','b'),
-  ('motion_slot_3_data_4','b'),
-  ('motion_slot_3_data_5','b'),
-  ('motion_slot_3_data_6','b'),
-  ('motion_slot_3_data_7','b'),
-  ('motion_slot_4_data_1','b'),
-  ('motion_slot_4_data_2','b'),
-  ('motion_slot_4_data_3','b'),
-  ('motion_slot_4_data_4','b'),
-  ('motion_slot_4_data_5','b'),
-  ('motion_slot_4_data_6','b'),
-  ('motion_slot_4_data_7','b'),
 ]
 
 def unpack(binary, structure):
@@ -345,4 +350,3 @@ def unpack(binary, structure):
     res[name] = val
 
   return res
-
