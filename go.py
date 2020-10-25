@@ -17,4 +17,6 @@ except zipfile.BadZipfile:
 
 with zip_file as file:
   file_content = file.read('Prog_%03d.prog_bin'  % (0,))
-  parser.parse(file_content)
+  res = parser.parse(file_content)
+  for k,v in res.iteritems():
+    print "%s => %s" % (k, v)
