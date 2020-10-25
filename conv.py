@@ -1,10 +1,10 @@
 
 class Conv(object):
   def from_raw(self, raw):
-    pass
+    return raw
 
   def to_raw(self, parsed):
-    pass
+    return parsed
 
 class ListConv(Conv):
   def __init__(self, items):
