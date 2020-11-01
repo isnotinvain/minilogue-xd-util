@@ -3,8 +3,8 @@ class Conv(object):
   def from_raw(self, raw):
     return raw
 
-  def to_raw(self, parsed):
-    return parsed
+  def to_raw(self, deserialized):
+    return deserialized
 
 class ListConv(Conv):
   def __init__(self, items):
@@ -13,8 +13,8 @@ class ListConv(Conv):
   def from_raw(self, raw):
     return self.items[raw]
 
-  def to_raw(self, parsed):
-    return self.items.index(parsed)
+  def to_raw(self, deserialized):
+    return self.items.index(deserialized)
 
 class DictConv(Conv):
   def __init__(self, d):
@@ -24,8 +24,8 @@ class DictConv(Conv):
   def from_raw(self, raw):
     return self.d[raw]
 
-  def to_raw(self, parsed):
-    return self.d_inv[parsed]
+  def to_raw(self, deserialized):
+    return self.d_inv[deserialized]
 
 class AddConv(Conv):
   def __init__(self, amount):
@@ -34,8 +34,8 @@ class AddConv(Conv):
   def from_raw(self, raw):
     return raw + self.amount
 
-  def to_raw(self, parsed):
-    return parsed - self.amount
+  def to_raw(self, deserialized):
+    return deserialized - self.amount
 
 class MulConv(Conv):
   def __init__(self, amount):
@@ -44,15 +44,15 @@ class MulConv(Conv):
   def from_raw(self, raw):
     return raw * self.amount
 
-  def to_raw(self, parsed):
-    return parsed / self.amount
+  def to_raw(self, deserialized):
+    return deserialized / self.amount
 
 class BoolConv(Conv):
   def from_raw(self, raw):
     return bool(raw)
 
-  def to_raw(self, parsed):
-    return int(parsed)
+  def to_raw(self, deserialized):
+    return int(deserialized)
 
 class BitFlags(Conv):
 
@@ -61,8 +61,8 @@ class BitFlags(Conv):
     bits = ("{:016b}".format(raw))[::-1]
     return [bool(int(x)) for x in bits]
 
-  def to_raw(self, parsed):
+  def to_raw(self, deserialized):
     # bool to bit to string, reversed again
-    bits = [str(int(x)) for x in parsed][::-1]
+    bits = [str(int(x)) for x in deserialized][::-1]
     bits_str = ''.join(bits)
     return int(bits_str, 2) # parse binary string

@@ -10,7 +10,7 @@ for f in patch_files:
   original = mnlgxdprog.extract_patch_bin(os.path.join(root, f))
   parsed = xd_prog_bin.deserialize(original)
   print 'Patch name: {}'.format(parsed['name'])
-  serialized = xd_prog_bin.serialize(parsed)
+  serialized = parsed.serialize()
 
   if serialized != original:
     raise ValueError('File {} did not round trip successfully'.format(f))

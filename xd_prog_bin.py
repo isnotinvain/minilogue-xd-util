@@ -37,6 +37,75 @@ class NestedConv(Conv):
   def to_raw(self, parsed):
     return pack(parsed, self.structure)
 
+def pitch_cents(data, value):
+  if 0 <= value <= 4:
+    return '-1200C'
+  if 4 <= value <= 356: #-1200 ~ -256 (Cent)
+    return str((value - 356) * 944 / 352 - 256) + 'C'
+  if 356 <= value <= 476: # -256 ~  -16 (Cent)
+    return str((value - 476) * 2 - 16) + 'C'
+  if 476 <= value <= 492: #  -16 ~   0 (Cent)
+    return str(value - 492) + 'C'
+  if 492 <= value <= 532: #    0 (Cent)
+    return '0C'
+  if 532 <= value <= 548: #    0 ~   16 (Cent)
+    return str(value - 532) + 'C'
+  if 548 <= value <= 668: #   16 ~  256 (Cent)
+    return str((value - 548) * 2 + 16) + 'C'
+  if 668 <= value <= 1020: #  256 ~ 1200 (Cent)
+    return str((value - 668) * 944 / 352 + 256) + 'C'
+  if 1020 <= value <= 1023: # 1200 (Cent)
+    return '1200C'
+
+def eg_int(data, val):
+  if 0 <= val <= 11:
+    return '-100%'
+  if 11 <= val <= 492:
+    return str(- ((492 - val) * (492 - val) * 4641 * 100) / 0x40000000) + '%'
+  if 492 <= val <= 532:
+    return '0%'
+  if 532 <= val <= 1013:
+    return str(((val - 532) * (val - 532) * 4641 * 100) / 0x40000000) + '%'
+  if 1013 <= val <= 1023:
+    return '100%'
+
+def lfo_rate(data, val):
+  if data['lfo_mode'] == 'BPM':
+    if 0 <= val <= 63:
+      return '4'
+    if 64 <= val <= 127:
+      return '2'
+    if 128 <= val <= 191:
+      return '1'
+    if 192 <= val <= 255:
+      return '3/4'
+    if 256 <= val <= 319:
+      return '1/2'
+    if 320 <= val <= 383:
+      return '3/8'
+    if 384 <= val <= 447:
+      return '1/3'
+    if 448 <= val <= 511:
+      return '1/4'
+    if 512 <= val <= 575:
+      return '3/16'
+    if 576 <= val <= 639:
+      return '1/6'
+    if 640 <= val <= 703:
+      return '1/8'
+    if 704 <= val <= 767:
+      return '1/12'
+    if 768 <= val <= 831:
+      return '1/16'
+    if 832 <= val <= 895:
+      return '1/24'
+    if 896 <= val <= 959:
+      return '1/32'
+    if 960 <= val <= 1023:
+      return '1/36'
+
+  return str(val)
+
 HEADER_SCHEMA = ('magic','<4s')
 
 VOICE_MODES = ListConv(['NONE', 'ARP', 'CHORD', 'UNISON','POLY'])
@@ -130,11 +199,11 @@ FILE_SCHEMA = [
   ('voice_mode_type','B', VOICE_MODES),
   ('vco_1_wave','B', VCO_WAVES),
   ('vco_1_octave_feet','B', OCTAVE_FEET),
-  ('vco_1_pitch','H'),
+  ('vco_1_pitch','H',Conv(),pitch_cents),
   ('vco_1_shape','H'),
   ('vco_2_wave','B', VCO_WAVES),
   ('vco_2_octave_feet','B', OCTAVE_FEET),
-  ('vco_2_pitch','H'),
+  ('vco_2_pitch','H', Conv(), pitch_cents),
   ('vco_2_shape','H'),
   ('sync','B', BoolConv()),
   ('ring','B', BoolConv()),
@@ -142,7 +211,7 @@ FILE_SCHEMA = [
   ('multi_type','B', MULTI_TYPES),
   ('multi_noise_type','B', NOISE_TYPES),
   ('multi_vpm_wave','B', VPM_WAVES),
-  ('multi_user_osc','B', AddConv(1)),
+  ('multi_user_osc','B', AddConv(1), lambda x : 'USER{}'.fomrat(x[1])),
   ('multi_shape_noise','H'),
   ('multi_shape_vpm','H'),
   ('multi_shape_user','H'),
@@ -154,15 +223,15 @@ FILE_SCHEMA = [
   ('multi_level','H'),
   ('cutoff','H'),
   ('resonance','H'),
-  ('drive','B', DRIVE),
-  ('keyboard_track','B', TRACK),
+  ('drive','B', DRIVE, lambda x : '{}%'.format(x[1])),
+  ('keyboard_track','B', TRACK, lambda x : '{}%'.format(x[1])),
   ('amp_eg_attack','H'),
   ('amp_eg_decay','H'),
   ('amp_eg_sustain','H'),
   ('amp_eg_release','H'),
   ('eg_attack','H'),
   ('eg_decay','H'),
-  ('eg_int','H'),
+  ('eg_int','H', Conv(), eg_int),
   ('eg_target','B', EG_TARGETS),
   ('lfo_wave','B', VCO_WAVES),
   ('lfo_mode','B', LFO_MODES),
@@ -266,6 +335,31 @@ FILE_SCHEMA = [
   ('arp_rate','B')
 ]
 
+class Parsed(object):
+  def __init__(self, schema, data):
+    self.schema = schema
+    self.data = data
+
+  def __getitem__(self, key):
+    return self.data[key]
+
+  def __setitem__(self, key, value):
+    self.data[key] = value
+
+  def serialize(self):
+    return pack(self.data, self.schema)
+
+  def nice_string(self):
+    printers = dict((x[0], x[3]) for x in self.schema if len(x) >= 4)
+
+    lines = []
+    for k,v in self.data.iteritems():
+      pp = printers.get(k, lambda x : str(x[1]))
+      ppv = pp((self.data, v))
+      lines.append('{} => {} ({})'.format(k, ppv, v))
+
+    return '\n'.join(lines)
+
 def unpack(binary, structure):
   format_string = ''.join(map(lambda x: x[1], structure))
   unpacked = struct.unpack(format_string, binary)
@@ -280,7 +374,7 @@ def unpack(binary, structure):
 
     val = raw
 
-    if len(structure[i]) == 3:
+    if len(structure[i]) >= 3:
       # apply conv
       conv = structure[i][2]
       val = conv.from_raw(raw)
@@ -289,16 +383,16 @@ def unpack(binary, structure):
 
   return res
 
-def pack(parsed, structure):
+def pack(data, structure):
   format_string = ''.join(map(lambda x: x[1], structure))
 
   raw_values = []
 
   for field in structure:
     name = field[0]
-    p = parsed[name]
+    p = data[name]
 
-    if len(field) == 3:
+    if len(field) >= 3:
       # invert conv
       conv = field[2]
       p = conv.to_raw(p)
@@ -328,7 +422,4 @@ def deserialize(file_content):
   if (unpacked['magic'] != 'PROG'):
     raise ValueError('This doesn\'t look like a valid file, magic PROG header incorrect')
 
-  return unpacked
-
-def serialize(parsed):
-  return pack(parsed, FILE_SCHEMA)
+  return Parsed(FILE_SCHEMA, unpacked)
