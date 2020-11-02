@@ -1,8 +1,10 @@
 '''
-This file works with the mnlgxdlib zip file container for minilogue xd library files
+This file works with the mnlgxdlib zip file container for minilogue xd library files.
 '''
-
+import xml.etree.ElementTree as ET
 import zipfile, traceback
+import os
+import re
 
 '''
 def test(file_path):
