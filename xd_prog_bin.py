@@ -4,8 +4,9 @@ Much of this file is taken and modified from https://gist.github.com/gekart/b187
 Thank you @gekart!
 '''
 
-import collections, struct, traceback
+import collections, struct, traceback, inspect
 from conv import *
+import json
 
 MOTION_PARAMETERS = DictConv({0 : 'NONE', 15 : 'PORTAMENTO', 16 : 'VOICE MODE: DEPTH', 17 : 'VOICE MODE: TYPE', 18 : 'VCO1: WAVE', 19 : 'VCO1: OCTAVE', 20 : 'VCO1: PITCH', 21 : 'VCO1: SHAPE', 22 : 'VCO2: WAVE', 23 : 'VCO2: OCTAVE', 24 : 'VCO2: PITCH', 25 : 'VCO2: SHAPE', 26 : 'SYNC', 27 : 'RING', 28 : 'CROSS MOD DEPTH', 29 : 'MULTI ENGINE: TYPE', 30 : 'MULTI ENGINE: NOISE TYPE', 31 : 'MULTI ENGINE: VPM TYPE', 33 : 'MULTI SHAPE: NOISE', 34 : 'MULTI SHAPE: VPM', 35 : 'MULTI SHAPE: USER', 36 : 'MULTI SHIFT SHAPE: NOISE', 37 : 'MULTI SHIFT SHAPE: VPM', 38 : 'MULTI SHIFT SHAPE: USER', 39 : 'VCO1: LEVEL', 40 : 'VCO2: LEVEL', 41 : 'MULTI ENGINE: LEVEL', 42 : 'CUTOFF', 43 : 'RESONANCE', 45 : 'KEYTRACK', 46 : 'AMP EG: ATTACK', 47 : 'AMP EG: DECAY', 48 : 'AMP EG: SUSTAIN', 49 : 'AMP EG: RELEASE', 50 : 'EG: ATTACK', 51 : 'EG: DECAY', 52 : 'EG: INT', 53 : 'EG: TARGET', 54 : 'LFO: WAVE', 55 : 'LFO: MODE', 56 : 'LFO: RATE', 57 : 'LFO: INT', 58 : 'LFO: TARGET', 59 : 'MOD FX: ON/OFF', 66 : 'MOD FX: TIME', 67 : 'MOD FX: DEPTH', 68 : 'DELAY: ON/OFF', 70 : 'DELAY: TIME', 71 : 'DELAY: DEPTH', 72 : 'REVERB: ON/OFF', 74 : 'REVERB: TIME', 75 : 'REVERB: DEPTH', 126 : 'PITCH BEND', 129 : 'GATE TIME'})
 
@@ -37,27 +38,31 @@ class NestedConv(Conv):
   def to_raw(self, parsed):
     return pack(parsed, self.structure)
 
-def pitch_cents(data, value):
+def pitch_cents(value):
   if 0 <= value <= 4:
-    return '-1200C'
-  if 4 <= value <= 356: #-1200 ~ -256 (Cent)
-    return str((value - 356) * 944 / 352 - 256) + 'C'
-  if 356 <= value <= 476: # -256 ~  -16 (Cent)
-    return str((value - 476) * 2 - 16) + 'C'
-  if 476 <= value <= 492: #  -16 ~   0 (Cent)
-    return str(value - 492) + 'C'
-  if 492 <= value <= 532: #    0 (Cent)
-    return '0C'
-  if 532 <= value <= 548: #    0 ~   16 (Cent)
-    return str(value - 532) + 'C'
-  if 548 <= value <= 668: #   16 ~  256 (Cent)
-    return str((value - 548) * 2 + 16) + 'C'
-  if 668 <= value <= 1020: #  256 ~ 1200 (Cent)
-    return str((value - 668) * 944 / 352 + 256) + 'C'
-  if 1020 <= value <= 1023: # 1200 (Cent)
-    return '1200C'
+    cents = -1200
+  elif 4 <= value <= 356: #-1200 ~ -256 (Cent)
+    cents = (value - 356) * 944 / 352 - 256
+  elif 356 <= value <= 476: # -256 ~  -16 (Cent)
+    cents = (value - 476) * 2 - 16
+  elif 476 <= value <= 492: #  -16 ~   0 (Cent)
+    cents = value - 492
+  elif 492 <= value <= 532: #    0 (Cent)
+    cents = 0
+  elif 532 <= value <= 548: #    0 ~   16 (Cent)
+    cents = value - 532
+  elif 548 <= value <= 668: #   16 ~  256 (Cent)
+    cents = (value - 548) * 2 + 16
+  elif 668 <= value <= 1020: #  256 ~ 1200 (Cent)
+    cents = (value - 668) * 944 / 352 + 256
+  elif 1020 <= value <= 1023: # 1200 (Cent)
+    cents = 1200
+  else:
+    raise ValueError('Invalid pitch cents: {}'.format(value))
 
-def eg_int(data, val):
+  return '{} Cent'.format(cents)
+
+def eg_int(val):
   if 0 <= val <= 11:
     return '-100%'
   if 11 <= val <= 492:
@@ -106,7 +111,118 @@ def lfo_rate(data, val):
 
   return str(val)
 
-HEADER_SCHEMA = ('magic','<4s')
+def bit_flag_pp(bits):
+  res = ''
+  for b in bits:
+    if b:
+      res += '+'
+    else:
+      res += '-'
+  return res
+
+def json_pp(item):
+  return json.dumps(item)
+
+def range_dict(rd, val):
+  for upper, res in rd:
+    if val <= upper:
+      return res
+
+  raise ValueError('Value out of range {}\n{}'.format(val, rd))
+
+ARP_RD = [
+  (78,   'MANUAL 1'),
+  (156,  'MANUAL 2'),
+  (234,  'RISE 1'),
+  (312,  'RISE 2'),
+  (390,  'FALL 1'),
+  (468,  'FALL 2'),
+  (546,  'RISE FALL 1'),
+  (624,  'RISE FALL 2'),
+  (702,  'POLY 1'),
+  (780,  'POLY 2'),
+  (858,  'RANDOM 1'),
+  (936,  'RANDOM 2'),
+  (1023, 'RANDOM 3')
+]
+
+CHORD_RD = [
+  (1,    'MONO'),
+  (73,   '5th'),
+  (146,  'sus2'),
+  (219,  'm'),
+  (292,  'Maj'),
+  (365,  'sus4'),
+  (438,  'm7'),
+  (511,  '7'),
+  (585,  '7sus4'),
+  (658,  'Maj7'),
+  (731,  'aug'),
+  (804,  'dim'),
+  (877,  'm7b5'),
+  (950,  'mMaj7'),
+  (1023, 'Maj7b5')
+]
+
+def voice_mode_depth(data, val):
+  if data['voice_mode_type'] == 'ARP':
+    return range_dict(ARP_RD, val)
+
+  if data['voice_mode_type'] == 'CHORD':
+    return range_dict(CHORD_RD, val)
+
+  if data['voice_mode_type'] == 'UNISON':
+    return str(val * 50 / 1023) + ' Cent'
+
+  if data['voice_mode_type'] == 'POLY':
+    if val < 256:
+      return 'POLY'
+    else:
+      return 'DUO' + str(val * 50 / 1023) + ' Cent'
+
+  raise ValueError('Unrecognized voice mode state')
+
+def add_sign(val):
+  res = ''
+  if val >= 0.0:
+    res = res + '+'
+
+  return res + str(val)
+
+def program_level(val):
+  if val == 102:
+    level = 0
+  else:
+    level = (float(val) - 12) / 5 - 18
+
+  res = ''
+  if level >= 0:
+    res = res + '+'
+
+  return '{:.1f} dB'.format(level)
+
+def user_param_curry(i):
+  def tmp(data, val):
+    return user_param(data, val, i)
+  return tmp
+
+def user_param(data, val, i):
+  param_type = (data['user_param_type'] & (3 << (i - 1))) >> (i - 1)
+
+  if param_type == 0: # Percent Type
+    return str(val) + '%'
+
+  if param_type == 1: # Bipolar
+    return str(val - 100)
+
+  return val # Select
+
+def pct1023(val):
+  fraction = float(val) / 1023
+  pct = fraction * 100
+  return '{:.1f}%'.format(pct)
+
+HEADER_SCHEMA = ('magic','<4s', Conv(), None)
 
 VOICE_MODES = ListConv(['NONE', 'ARP', 'CHORD', 'UNISON','POLY'])
 VCO_WAVES = ListConv(['SQR', 'TRI', 'SAW'])
@@ -192,17 +308,17 @@ STEP_EVENT_SCHEMA = [
 FILE_SCHEMA = [
   HEADER_SCHEMA,
   ('name','12s'),
-  ('octave','B', AddConv(2)),
+  ('octave','B', AddConv(-2)),
   ('portamento','B'),
   ('key_trig','B', BoolConv()),
-  ('voice_mode_depth','H'),
+  ('voice_mode_depth','H', Conv(), voice_mode_depth),
   ('voice_mode_type','B', VOICE_MODES),
   ('vco_1_wave','B', VCO_WAVES),
-  ('vco_1_octave_feet','B', OCTAVE_FEET),
+  ('vco_1_octave_feet','B', OCTAVE_FEET, lambda x : str(x) + "'"),
   ('vco_1_pitch','H',Conv(),pitch_cents),
   ('vco_1_shape','H'),
   ('vco_2_wave','B', VCO_WAVES),
-  ('vco_2_octave_feet','B', OCTAVE_FEET),
+  ('vco_2_octave_feet','B', OCTAVE_FEET, lambda x : str(x) + "'"),
   ('vco_2_pitch','H', Conv(), pitch_cents),
   ('vco_2_shape','H'),
   ('sync','B', BoolConv()),
@@ -211,20 +327,20 @@ FILE_SCHEMA = [
   ('multi_type','B', MULTI_TYPES),
   ('multi_noise_type','B', NOISE_TYPES),
   ('multi_vpm_wave','B', VPM_WAVES),
-  ('multi_user_osc','B', AddConv(1), lambda x : 'USER{}'.fomrat(x[1])),
-  ('multi_shape_noise','H'),
-  ('multi_shape_vpm','H'),
-  ('multi_shape_user','H'),
-  ('multi_shift_shape_noise','H'),
-  ('multi_shift_shape_vpm','H'),
-  ('multi_shift_shape_user_osc','H'),
+  ('multi_user_osc','B', AddConv(1), lambda x : 'USER{}'.format(x)),
+  ('multi_shape_noise','H', Conv(), pct1023), # actually varies by noise type
+  ('multi_shape_vpm','H', Conv(), pct1023), # actually mod depth
+  ('multi_shape_user','H', Conv(), pct1023),
+  ('multi_shift_shape_noise','H', Conv(), pct1023), # actually varies by noise type
+  ('multi_shift_shape_vpm','H', Conv(), pct1023), # actually ratio offset
+  ('multi_shift_shape_user_osc','H', Conv(), pct1023),
   ('vco_1_level','H'),
   ('vco_2_level','H'),
   ('multi_level','H'),
   ('cutoff','H'),
   ('resonance','H'),
-  ('drive','B', DRIVE, lambda x : '{}%'.format(x[1])),
-  ('keyboard_track','B', TRACK, lambda x : '{}%'.format(x[1])),
+  ('drive','B', DRIVE, lambda x : '{}%'.format(x)),
+  ('keyboard_track','B', TRACK, lambda x : '{}%'.format(x)),
   ('amp_eg_attack','H'),
   ('amp_eg_decay','H'),
   ('amp_eg_sustain','H'),
@@ -235,8 +351,8 @@ FILE_SCHEMA = [
   ('eg_target','B', EG_TARGETS),
   ('lfo_wave','B', VCO_WAVES),
   ('lfo_mode','B', LFO_MODES),
-  ('lfo_rate','H'),
-  ('lfo_int','H'),
+  ('lfo_rate','H', Conv(), lfo_rate),
+  ('lfo_int','H', AddConv(-512)),
   ('lfo_target','B', LFO_TARGETS),
   ('mod_fx_on','B', BoolConv()),
   ('mod_fx_type','B', MOD_FX_TYPES),
@@ -255,8 +371,8 @@ FILE_SCHEMA = [
   ('reverb_type','B', REVERB_TYPES),
   ('reverb_time','H'),
   ('reverb_depth','H'),
-  ('x+_bend_range','B'),
-  ('x-_bend_range','B', MulConv(-1)),
+  ('x+_bend_range','B', Conv(), add_sign),
+  ('x-_bend_range','B', MulConv(-1), add_sign),
   ('y+_assign','B', ASSIGN_PARAMETERS),
   ('y+_range','B', AddConv(-100)),
   ('y-_assign','B', ASSIGN_PARAMETERS),
@@ -267,72 +383,72 @@ FILE_SCHEMA = [
   ('cv_in2_assign','B', ASSIGN_PARAMETERS),
   ('cv_in2_range','B', AddConv(-100)),
   ('micro_tuning','B', MICRO_TUNING),
-  ('scale_key','B'),
-  ('program_tuning','B'),
+  ('scale_key','B', AddConv(-12), lambda x : add_sign(x) + ' Notes'),
+  ('program_tuning','B', AddConv(-50), lambda x : add_sign(x) + ' Cents'),
   ('lfo_key_sync','B', BoolConv()),
   ('lfo_voice_sync','B', BoolConv()),
   ('lfo_target_osc','B', LFO_TARGET_OSC),
   ('cutoff_velocity','B'),
   ('amp_velocity','B'),
-  ('multi_octave','B', OCTAVE_FEET),
+  ('multi_octave','B', OCTAVE_FEET, lambda x : str(x) + "'"),
   ('multi_routing','B', MULTI_ROUTING),
   ('eg_legato_on','B', BoolConv()),
   ('portamento_mode','B', PORTAMENTO_MODE),
   ('portamento_bpm_sync_on','B', BoolConv()),
-  ('program_level','B'),
+  ('program_level','B', Conv(), program_level),
   ('vpm_param1','B', AddConv(-100)),
   ('vpm_param2','B', AddConv(-100)),
   ('vpm_param3','B', AddConv(-100)),
   ('vpm_param4','B', AddConv(-100)),
   ('vpm_param5','B', AddConv(-100)),
   ('vpm_param6','B', AddConv(-100)),
-  ('user_param1','B'),
-  ('user_param2','B'),
-  ('user_param3','B'),
-  ('user_param4','B'),
-  ('user_param5','B'),
-  ('user_param6','B'),
-  ('user_param_type','H'),
-  ('program_transpose','B', AddConv(-13)),
+  ('user_param1','B', Conv(), user_param_curry(1)),
+  ('user_param2','B', Conv(), user_param_curry(2)),
+  ('user_param3','B', Conv(), user_param_curry(3)),
+  ('user_param4','B', Conv(), user_param_curry(4)),
+  ('user_param5','B', Conv(), user_param_curry(5)),
+  ('user_param6','B', Conv(), user_param_curry(6)),
+  ('user_param_type','H', Conv()), # wrong, user_param5_6_r_r_type
+  ('program_transpose','B', AddConv(-13), lambda x : '{} Notes'.format(add_sign(x))),
   ('delay_dry_wet','H'),
   ('reverb_dry_wet','H'),
   ('midi_after_touch_assign','B', ASSIGN_PARAMETERS),
-  ('pred','4s'),
-  ('sq','2s'),
-  ('seq_active_steps','H', BitFlags()),
-  ('bpm','H'),
+  ('pred','4s', Conv(), None),
+  ('sq','2s', Conv(), None),
+  ('seq_active_steps','H', BitFlags(), bit_flag_pp),
+  ('bpm','H', Conv(), lambda x : '{:.1f}'.format(float(x) / 10)),
   ('seq_step_length','B'),
   ('seq_step_resolution','B', STEP_RESOLUTIONS),
   ('swing','B', AddConv(-75)),
-  ('default_gate_time','B'),
-  ('seq_steps_on','H', BitFlags()),
-  ('seq_steps_motion_on','H', BitFlags()),
-  ('seq_motion_1_param','H', MotionParameter()),
-  ('seq_motion_2_param','H', MotionParameter()),
-  ('seq_motion_3_param','H', MotionParameter()),
-  ('seq_motion_4_param','H', MotionParameter()),
-  ('seq_steps_motion_1_on','H', BitFlags()),
-  ('seq_steps_motion_2_on','H', BitFlags()),
-  ('seq_steps_motion_3_on','H', BitFlags()),
-  ('seq_steps_motion_4_on','H', BitFlags()),
-  ('step_1_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_2_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_3_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_4_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_5_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_6_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_7_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_8_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_9_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_10_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_11_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_12_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_13_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_14_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_15_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
-  ('step_16_event_data','52s', NestedConv(STEP_EVENT_SCHEMA)),
+  ('default_gate_time','B', Conv(), lambda x: str((x * 100) / 72) + '%'),
+  ('seq_steps_on','H', BitFlags(), bit_flag_pp),
+  ('seq_steps_motion_on','H', BitFlags(), bit_flag_pp),
+  ('seq_motion_1_param','H', MotionParameter(), json_pp),
+  ('seq_motion_2_param','H', MotionParameter(), json_pp),
+  ('seq_motion_3_param','H', MotionParameter(), json_pp),
+  ('seq_motion_4_param','H', MotionParameter(), json_pp),
+  ('seq_steps_motion_1_on','H', BitFlags(), bit_flag_pp),
+  ('seq_steps_motion_2_on','H', BitFlags(), bit_flag_pp),
+  ('seq_steps_motion_3_on','H', BitFlags(), bit_flag_pp),
+  ('seq_steps_motion_4_on','H', BitFlags(), bit_flag_pp),
+  ('step_1_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_2_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_3_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_4_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_5_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_6_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_7_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_8_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_9_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_10_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_11_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_12_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_13_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_14_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_15_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_16_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
   ('arp_gate_time','B'),
-  ('arp_rate','B')
+  ('arp_rate','B', Conv(), lambda x: str((x * 100) / 72) + '%')
 ]
 
 class Parsed(object):
@@ -354,9 +470,15 @@ class Parsed(object):
 
     lines = []
     for k,v in self.data.iteritems():
-      pp = printers.get(k, lambda x : str(x[1]))
-      ppv = pp((self.data, v))
-      lines.append('{} => {} ({})'.format(k, ppv, v))
+      pp = printers.get(k, lambda x : str(x))
+
+      if pp:
+        if len(inspect.getargspec(pp).args) == 1:
+          ppv = pp(v)
+        else:
+          ppv = pp(self.data, v)
+
+        lines.append('{} => {} ({})'.format(k, ppv, v))
 
     return '\n'.join(lines)
 

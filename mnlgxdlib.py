@@ -39,5 +39,5 @@ def extract_patch_bin(file_path, patch_number):
 def write_single_patch(patch_bin, file_path):
   with zipfile.ZipFile(file_path, mode='w') as zip_file:
     zip_file.write(os.path.join('assets','patch_template', 'Prog_000.prog_info'), 'Prog_000.prog_info')
-    zip_file.write(os.path.join('assets','patch_template', 'FileInformation.xml', 'FileInformation.xml')
+    zip_file.write(os.path.join('assets','patch_template', 'FileInformation.xml'), 'FileInformation.xml')
     zip_file.writestr('Prog_000.prog_bin', patch_bin)
