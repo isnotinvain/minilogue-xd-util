@@ -1,21 +1,12 @@
 '''
 This file works with the mnlgxdlib zip file container for minilogue xd library files.
 '''
-import xml.etree.ElementTree as ET
-import zipfile, traceback
+import zipfile
+import traceback
 import os
 import re
 
-'''
-def test(file_path):
-  zip_file = zipfile.ZipFile(file_path, mode='r')
-  out = zipfile.ZipFile(file_path + '_copy.mnlgxdlib', mode='w')
-
-  with zip_file as file, out as o:
-    for f in zip_file.namelist():
-      data = zip_file.read(f)
-      o.writestr(f, data)
-'''
+import fileinformation
 
 ACCEPTED_FILE_SUFFIXES = ['.mnlgxdprog', '.mnlgxdlib']
 
@@ -35,6 +26,16 @@ def validate_and_open_file(file_path):
 def extract_patch_bin(file_path, patch_number):
   with validate_and_open_file(file_path) as file:
     return file.read('Prog_%03d.prog_bin'  % patch_number)
+
+def extract_all_patch_bins(file_path):
+  res = []
+
+  with validate_and_open_file(file_path) as file:
+    for n in file.namelist():
+      if re.match(fileinformation.PROG_BIN_RE, n):
+          res.append((n, file.read(n)))
+
+  return res
 
 def write_single_patch(patch_bin, file_path):
   with zipfile.ZipFile(file_path, mode='w') as zip_file:

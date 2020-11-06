@@ -6,16 +6,16 @@ import xml.etree.ElementTree as ET
 import os
 import re
 
-PROG_BIN_RE = 'Prog_(\d{3}\).prog_bin'
-PROG_INFO_RE = 'Prog_(\d{3}\).prog_info'
+PROG_BIN_RE = 'Prog_(\d{3})\.prog_bin'
+PROG_INFO_RE = 'Prog_(\d{3})\.prog_info'
 
-TUNS_BIN_RE = 'TunS_(\d{3}\).TunS_bin'
-TUNS_INFO_RE = 'TunS_(\d{3}\).TunS_info'
+TUNS_BIN_RE = 'TunS_(\d{3})\.TunS_bin'
+TUNS_INFO_RE = 'TunS_(\d{3})\.TunS_info'
 
-TUNO_BIN_RE = 'TunO_(\d{3}\).TunO_bin'
-TUNO_INFO_RE = 'TunO_(\d{3}\).TunO_info'
+TUNO_BIN_RE = 'TunO_(\d{3})\.TunO_bin'
+TUNO_INFO_RE = 'TunO_(\d{3})\.TunO_info'
 
-def look_for(files, kind, suffix = None):
+def look_for(f, files, kind, suffix = None):
 
   if not suffix:
     suffix = kind
@@ -30,7 +30,7 @@ def look_for(files, kind, suffix = None):
 
   found = False
 
-  m = re.match(bin_re)
+  m = re.match(bin_re, f)
   if m:
     found = True
     id = m.group(1)
@@ -38,7 +38,7 @@ def look_for(files, kind, suffix = None):
     if not info in files:
       print 'Warning! Missing: {}'.format(info)
 
-  m = re.match(info_re)
+  m = re.match(info_re, f)
   if m:
     id = m.group(1)
     binf = bin_fmt.format(id)
@@ -62,13 +62,13 @@ def mk_file_info_xml_from_dir(dir_path):
     if f == 'FileInformation.xml':
       pass
 
-    elif look_for(files, 'Prog', 'prog'):
+    elif look_for(f, files, 'Prog', 'prog'):
       patch_files = patch_files + 1
 
-    elif look_for(files, 'TunS'):
+    elif look_for(f, files, 'TunS'):
       tune_scale_data = tune_scale_data + 1
 
-    elif look_for(files, 'TunO'):
+    elif look_for(f, files, 'TunO'):
       tune_oct_data = tune_oct_data + 1
 
     else:

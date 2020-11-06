@@ -11,6 +11,8 @@ class ListConv(Conv):
     self.items = items
 
   def from_raw(self, raw):
+    if raw >= len(self.items):
+      raise ValueError('index {} out of range for {}'.format(raw, self.items))
     return self.items[raw]
 
   def to_raw(self, deserialized):
