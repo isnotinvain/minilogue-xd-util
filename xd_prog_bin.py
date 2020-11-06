@@ -207,15 +207,25 @@ def user_param_curry(i):
   return tmp
 
 def user_param(data, val, i):
-  param_type = (data['user_param_type'] & (3 << (i - 1))) >> (i - 1)
+  if not 1 <= i <= 6:
+    raise ValueError("Invalid user param: " + str(i))
 
-  if param_type == 0: # Percent Type
+  shift_by = (i - 1) * 2
+  param_type = (data['user_param_type'] >> shift_by) & 3
+
+  if param_type == 0:
+    # normal percent
     return str(val) + '%'
 
-  if param_type == 1: # Bipolar
-    return str(val - 100)
+  if param_type == 1:
+    # bipolar percent
+    return str(val - 100) + '%'
 
-  return val # Select
+  if param_type == 2:
+    # normal, just add 1
+    return val + 1
+
+  raise ValueError("Unrecognized param type: " + str(param_type))
 
 def pct1023(val):
   fraction = float(val) / 1023
@@ -408,7 +418,7 @@ FILE_SCHEMA = [
   ('user_param4','B', Conv(), user_param_curry(4)),
   ('user_param5','B', Conv(), user_param_curry(5)),
   ('user_param6','B', Conv(), user_param_curry(6)),
-  ('user_param_type','H', Conv()), # wrong, user_param5_6_r_r_type
+  ('user_param_type','H', Conv(), None),
   ('program_transpose','B', AddConv(-13), lambda x : '{} Notes'.format(add_sign(x))),
   ('delay_dry_wet','H'),
   ('reverb_dry_wet','H'),
@@ -447,8 +457,8 @@ FILE_SCHEMA = [
   ('step_14_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
   ('step_15_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
   ('step_16_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
-  ('arp_gate_time','B'),
-  ('arp_rate','B', Conv(), lambda x: str((x * 100) / 72) + '%')
+  ('arp_gate_time','B', Conv(), lambda x: str((x * 100) / 72) + '%'),
+  ('arp_rate','B')
 ]
 
 class Parsed(object):
@@ -478,7 +488,7 @@ class Parsed(object):
         else:
           ppv = pp(self.data, v)
 
-        lines.append('{} => {} ({})'.format(k, ppv, v))
+        lines.append('{} => {}'.format(k, ppv))
 
     return '\n'.join(lines)
 
