@@ -1,11 +1,11 @@
-import sys, zipfile, traceback
+import sys
 import xd_prog_bin
 import mnlgxdprog
 
 USAGE = '\n'.join([
   'Usage:',
   'python dump.py my_patch.mnlgxdprog',
-  'python dump.py my_lib.mnlgxdprog <patch_number>',
+  'python dump.py my_lib.mnlgxdlib <patch_number>',
   'Where <patch_number> is the patch to dump, starting at 1 for the first patch'
 ])
 
