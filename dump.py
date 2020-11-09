@@ -16,7 +16,12 @@ file_path = sys.argv[1]
 patch_number = 0
 
 if file_path.endswith('mnlgxdlib'):
-  patch_number = int(sys.argv[2])
+  if len(sys.argv) < 3:
+    raise ValueError(Usage)
+  pn = int(sys.argv[2])
+  if pn <= 0:
+    raise ValueError('Patch number must be >= 1')
+  patch_number = pn - 1
 
 patch = mnlgxdprog.extract_patch(file_path, patch_number)
 
