@@ -96,6 +96,8 @@ def bit_flag_pp(bits):
 def json_pp(item):
   return json.dumps(item)
 
+# for when a range of values maps to 1 setting
+# rd should be a sorted list of (upper_inclusive_bound, value), low to high
 def range_dict(rd, val):
   for upper, res in rd:
     if val <= upper:
@@ -175,6 +177,7 @@ def program_level(val):
 
   return '{:.1f} dB'.format(level)
 
+# for calling user_param with the i hardcoded
 def user_param_curry(i):
   def tmp(data, val):
     return user_param(data, val, i)
@@ -184,7 +187,13 @@ def user_param(parsed, val, i):
   if not 1 <= i <= 6:
     raise ValueError("Invalid user param: " + str(i))
 
+  # user_param_type is 16 bits. Each user param type is specified by 2 bits, in this order:
+  # 4 unused bits, param6, param5, param4, param3, param2, param1
+
+  # param1 needs to shift right by 0, param2 needs to shift right by 2, etc.
   shift_by = (i - 1) * 2
+
+  # shift right by needed amount, then zero out all but the rightmost 2 bits
   param_type = (parsed['user_param_type'] >> shift_by) & 3
 
   if param_type == 0:
@@ -196,8 +205,8 @@ def user_param(parsed, val, i):
     return str(val - 100) + '%'
 
   if param_type == 2:
-    # normal, just add 1
-    return val + 1
+    # normal, just add 1 to handle 0 indexing
+    return str(val + 1)
 
   if param_type == 3:
     # empty / user osc not used
@@ -227,14 +236,14 @@ MOTION_PARAMETERS = DictConv({
   27  : 'RING',
   28  : 'CROSS MOD DEPTH',
   29  : 'MULTI ENGINE: TYPE',
-  30  : 'MULTI ENGINE: NOISE TYPE',
-  31  : 'MULTI ENGINE: VPM TYPE',
-  33  : 'MULTI SHAPE: NOISE',
-  34  : 'MULTI SHAPE: VPM',
-  35  : 'MULTI SHAPE: USER',
-  36  : 'MULTI SHIFT SHAPE: NOISE',
-  37  : 'MULTI SHIFT SHAPE: VPM',
-  38  : 'MULTI SHIFT SHAPE: USER',
+  30  : 'MULTI ENGINE NOISE: TYPE',
+  31  : 'MULTI ENGINE VPM: TYPE',
+  33  : 'MULTI ENGINE NOISE: SHAPE',
+  34  : 'MULTI ENGINE VPM: SHAPE',
+  35  : 'MULTI ENGINE USER: SHAPE',
+  36  : 'MULTI ENGINE NOISE: SHIFT SHAPE',
+  37  : 'MULTI ENGINE VPM: SHIFT SHAPE',
+  38  : 'MULTI ENGINE USER: SHIFT SHAPE',
   39  : 'VCO1: LEVEL',
   40  : 'VCO2: LEVEL',
   41  : 'MULTI ENGINE: LEVEL',
@@ -271,9 +280,11 @@ MOTION_PARAMETERS = DictConv({
 class MotionParameter(Conv):
 
   def from_file_repr(self, file_repr):
-    param = MOTION_PARAMETERS.from_file_repr(file_repr >> 8)
+    index = file_repr >> 8
+    param = MOTION_PARAMETERS.from_file_repr(index)
+
     motion_on = bool(file_repr & 1)
-    smooth_on = bool((file_repr & 2) >> 1)
+    smooth_on = bool((file_repr >> 1) & 1)
     return collections.OrderedDict([('parameter', param), ('motion_on', motion_on), ('smooth_on', smooth_on)])
 
   def to_file_repr(self, parsed):
@@ -309,6 +320,7 @@ LFO_MODES = ListConv(['1-SHOT','NORMAL','BPM'])
 
 LFO_TARGETS = ListConv(['CUTOFF', 'SHAPE', 'PITCH'])
 
+# Note this one is wrong in the @gekart gist, needs 'NONE' pre-pended to it like this
 MOD_FX_TYPES = ListConv(['NONE', 'CHORUS','ENSEMBLE','PHASER','FLANGER','USER'])
 
 CHORUS_TYPES = ListConv(['STEREO','LIGHT','DEEP','TRIPHASE','HARMONIC','MONO','FEEDBACK','VIBRATO'])
@@ -336,26 +348,26 @@ ASSIGN_PARAMETERS = ListConv(['GATE TIME','PORTAMENTO','VOICE MODE: DEPTH','VCO1
                               'DELAY: TIME','DELAY: DEPTH'])
 
 MICRO_TUNING = DictConv({
-  0 : 'EQUAL TEMP',
-  1 : 'PURE MAJOR',
-  2 : 'PURE MINOR',
-  3 : 'PYTHAGOREAN',
-  4 : 'WERCKMEISTER',
-  5 : 'KIRNBURGER',
-  6 : 'SLENDRO',
-  7 : 'PELOG',
-  8 : 'IONIAN',
-  9 : 'DORIAN',
-  10 : 'AEOLIAN',
-  11 : 'MAJOR PENTA',
-  12 : 'MINOR PENTA',
-  13 : 'REVERSE',
-  14 : 'AFX001',
-  15 : 'AFX002',
-  16 : 'AFX003',
-  17 : 'AFX004',
-  18 : 'AFX005',
-  19 : 'AFX006',
+  0   : 'EQUAL TEMP',
+  1   : 'PURE MAJOR',
+  2   : 'PURE MINOR',
+  3   : 'PYTHAGOREAN',
+  4   : 'WERCKMEISTER',
+  5   : 'KIRNBURGER',
+  6   : 'SLENDRO',
+  7   : 'PELOG',
+  8   : 'IONIAN',
+  9   : 'DORIAN',
+  10  : 'AEOLIAN',
+  11  : 'MAJOR PENTA',
+  12  : 'MINOR PENTA',
+  13  : 'REVERSE',
+  14  : 'AFX001',
+  15  : 'AFX002',
+  16  : 'AFX003',
+  17  : 'AFX004',
+  18  : 'AFX005',
+  19  : 'AFX006',
   128 : 'USER SCALE 1',
   129 : 'USER SCALE 2',
   130 : 'USER SCALE 3',
@@ -375,16 +387,31 @@ MULTI_ROUTING = ListConv(['PRE VCF', 'POST VCF'])
 PORTAMENTO_MODE = ListConv(['AUTO', 'ON'])
 STEP_RESOLUTIONS = ListConv(['1/16','1/8','1/4','1/2','1/1'])
 
+def pp_note(n):
+  return '{}{}'.format(n[0], n[1])
+
+def pp_steps(parsed, ignored):
+  steps = []
+  for i in xrange(1, 16):
+    data = parsed['step_{}_event_data'.format(i)]
+    notes = []
+    for n in xrange(1, 8):
+      note = data['note_{}'.format(n)]
+      vel = data['velocity_{}'.format(n)]
+      if vel:
+        notes.append(pp_note(note))
+    steps.append(','.join(notes))
+  return ' | '.join(steps)
 
 STEP_EVENT_SCHEMA = [
-  ('note_1', '<B'),
-  ('note_2', 'B'),
-  ('note_3', 'B'),
-  ('note_4', 'B'),
-  ('note_5', 'B'),
-  ('note_6', 'B'),
-  ('note_7', 'B'),
-  ('note_8', 'B'),
+  ('note_1', '<B', NoteConv(), pp_note),
+  ('note_2', 'B', NoteConv(), pp_note),
+  ('note_3', 'B', NoteConv(), pp_note),
+  ('note_4', 'B', NoteConv(), pp_note),
+  ('note_5', 'B', NoteConv(), pp_note),
+  ('note_6', 'B', NoteConv(), pp_note),
+  ('note_7', 'B', NoteConv(), pp_note),
+  ('note_8', 'B', NoteConv(), pp_note),
   ('velocity_1', 'B'),
   ('velocity_2', 'B'),
   ('velocity_3', 'B'),
@@ -557,7 +584,7 @@ FILE_SCHEMA = [
   ('seq_steps_motion_2_on','H', BitFlags(), bit_flag_pp),
   ('seq_steps_motion_3_on','H', BitFlags(), bit_flag_pp),
   ('seq_steps_motion_4_on','H', BitFlags(), bit_flag_pp),
-  ('step_1_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
+  ('step_1_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), pp_steps), # first one prints them all, TODO, better way to handle this
   ('step_2_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
   ('step_3_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),
   ('step_4_event_data','52s', NestedConv(STEP_EVENT_SCHEMA), None),

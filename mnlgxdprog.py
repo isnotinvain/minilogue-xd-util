@@ -4,11 +4,8 @@ mnlgxdprog files are essentially mnlgxdlib files with fewer items in them, so mo
 delegates to mnlgxdlib.py
 '''
 
-import traceback
-import zipfile
-
-import xd_prog_bin
 import mnlgxdlib
+import xd_prog_bin
 
 def extract_patch_bin(file_path, patch_number = 0):
   return mnlgxdlib.extract_patch_bin(file_path, patch_number)

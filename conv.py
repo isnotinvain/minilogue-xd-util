@@ -114,6 +114,19 @@ class BitFlags(Conv):
     bits_str = ''.join(bits)
     return int(bits_str, 2) # parse binary string
 
+NOTES = ('C','C#','D','D#','E','F','F#','G','G#','A','A#', 'B')
+
+class NoteConv(Conv):
+  def from_file_repr(self, file_repr):
+    note = NOTES[file_repr % 12]
+    octave_designation = (file_repr / 12) - 2
+    return (note, octave_designation)
+
+  def to_file_repr(self, idiomatic):
+    (note, octave_designation) = idiomatic
+    ni = NOTES.index(note)
+    return ni + ((octave_designation + 2) * 12)
+
 '''
 For the parts of the file that are nested / have sub-structures.
 Given a schema, will parse the field's bytes using parser.parse

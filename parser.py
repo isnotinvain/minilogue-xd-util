@@ -1,5 +1,6 @@
 '''
 Parses binary files based on a provided schema, and applies conversions to more idiomatic python values.
+Conversions are specified in the given schema via Conv instances.
 '''
 
 import collections
@@ -7,7 +8,7 @@ import inspect
 import struct
 
 '''
-A Parsed is dict-like but also carries its schema, and can be serialized back to it's binary format.
+A Parsed is dict-like but also carries its schema, and can be serialized back to its binary format.
 It can also be pretty printed.
 
 Schema should be a list of tuples, each of which in one of the following forms:
@@ -17,12 +18,16 @@ Schema should be a list of tuples, each of which in one of the following forms:
 
 binary_format is a string understood by the struct library
 
-conv is an instance of Conv
+conv is an instance of Conv that can handle the value that the struct library
+produces based on the given binary_format
 
-pretty_printer is a fucntion
+pretty_printer is a fucntion or None
   if the function has arity of 1, it should be a function from value => pretty string
   if the function has arity of 2, it should be a function from (parsed, value) => pretty string
-  where parsed is the Parsed instance being printed
+    where parsed is the Parsed instance being printed
+  if None the field won't be printed at all
+
+if pretty_printer is omitted str(value) will be used
 '''
 class Parsed(object):
   def __init__(self, schema, data):
@@ -60,7 +65,7 @@ class Parsed(object):
     for k,v in self.data.iteritems():
       pp = printers.get(k, lambda x : str(x))
 
-      if pp:
+      if pp: # if pp is None we don't print anything
         if len(inspect.getargspec(pp).args) == 1:
           ppv = pp(v)
         else:

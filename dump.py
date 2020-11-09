@@ -1,6 +1,6 @@
 import sys
-import mnlgxdprog
 
+import mnlgxdprog
 import cmdline_util
 
 USAGE = '\n'.join([

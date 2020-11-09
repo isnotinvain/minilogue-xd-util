@@ -1,10 +1,16 @@
 '''
-This file works with the FileInformation.xml file in mnlgxdlib / mnlgxdprog files
+This file works with the FileInformation.xml file in mnlgxdlib / mnlgxdprog files.
+
+It's sort of a strange format given that I think all libraries have all 500 patch files,
+and all the tune and scale files, or just 1 patch file and that's it. Also all the _info
+file seem to be empty. So I'm not really sure how necessary this file is, but here it
+is anyway. Not sure why sound librarian needs this file and can't just scan the zip
+for what's there...
 '''
 
-import xml.etree.ElementTree as ET
 import os
 import re
+import xml.etree.ElementTree as ET
 
 PROG_BIN_RE = 'Prog_(\d{3})\.prog_bin'
 PROG_INFO_RE = 'Prog_(\d{3})\.prog_info'
