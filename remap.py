@@ -6,6 +6,14 @@ import cmdline_util
 import mnlgxdprog
 import mnlgxdlib
 
+USAGE = '\n'.join([
+  'Usage:',
+  'python remap.py my_patch.mnlgxdprog <remap_expr> <remap_expr> <remap_expr>....',
+  'python remap.py my_lib.mnlgxdlib <patch_expr> <remap_expr>',
+  'Where <patch_expr> is the patch to remap, starting at 1 for the first patch, or a range in the form 1:100 (inclusive)',
+  'And <remap_expr> is in the form osc:1:2 to map user oscillator 1 to 2, or rev:1:2, or del:1:2, or mod:1:2'
+])
+
 def remap_patch(patch, remaps):
   did_remap = False
 
@@ -52,14 +60,6 @@ def remap_patch(patch, remaps):
       did_remap = True
 
   return did_remap
-
-USAGE = '\n'.join([
-  'Usage:',
-  'python remap.py my_patch.mnlgxdprog <remap_expr> <remap_expr> <remap_expr>....',
-  'python remap.py my_lib.mnlgxdlib <patch_expr> <remap_expr>',
-  'Where <patch_expr> is the patch to remap, starting at 1 for the first patch, or a range in the form 1:100 (inclusive)',
-  'And <remap_expr> is in the form osc:1:2 to map user oscillator 1 to 2, or rev:1:2, or del:1:2, or mod:1:2'
-])
 
 if len(sys.argv) < 3:
   raise ValueError(Usage)
