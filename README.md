@@ -1,22 +1,32 @@
 # minilogue-xd-utils
 
-Some utilties for working with minilogue xd patches and libraries
+Some utilties for working with minilogue xd patches and libraries.
+Can be used as a library to get a reasonably idiomatic python object representing a patch file (so you can manipulate it).
+Also includes some command line scripts described below. To use just clone the repo, and cd into it. 
+No 3rdparty libraries are used / need to be installed.
 
 ## Pretty print patch file
 `python dump.py my_patch.mnlgxdprog`
 
 or
 
-`python dump.py my_lib.mnlgxdlib <patch_number>`
+`python dump.py my_lib.mnlgxdlib <patch_expr>`
 
-Where `<patch_number>` is the patch to dump, starting at 1 for the first patch
+Where `<patch_expr>` is the patches to dump. It can be a single number, eg `3` or a range 
+in the format `from:to`, eg `200:210` for patches 200 to 210, including both 200 and 210.
+
+For example:
+
+`python dump.py my_lib.mnlgxdlib 3`
+
+`python dump.py my_lib.mnlgxdlib 200:210`
 
 Thanks to @gekart for this gist this is based off of: 
 https://gist.github.com/gekart/b187d3c16e6160571ccfcf6c597fea3f
 
 This fork has a few updates from the original:
 * Prints correct mod effects
-* Prints user oscillator params 1 through 6, and handles the case where they aren't parseable / not used
+* Prints user oscillator params 1 through 6, and handles the case where they aren't set at all
 * Some nicer ascii representations of sequence / motion data (needs test to confirm it's right currently)
 
 ## Remap user oscillators / fx
