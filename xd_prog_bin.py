@@ -13,30 +13,30 @@ MOTION_PARAMETERS = DictConv({0 : 'NONE', 15 : 'PORTAMENTO', 16 : 'VOICE MODE: D
 
 class MotionParameter(Conv):
 
-  def from_raw(self, raw):
-    param = MOTION_PARAMETERS.from_raw(raw >> 8)
-    motion_on = bool(raw & 1)
-    smooth_on = bool((raw & 2) >> 1)
+  def from_file_repr(self, file_repr):
+    param = MOTION_PARAMETERS.from_file_repr(file_repr >> 8)
+    motion_on = bool(file_repr & 1)
+    smooth_on = bool((file_repr & 2) >> 1)
     return collections.OrderedDict([('parameter', param), ('motion_on', motion_on), ('smooth_on', smooth_on)])
 
-  def to_raw(self, parsed):
-    param = MOTION_PARAMETERS.to_raw(parsed['parameter'])
+  def to_file_repr(self, parsed):
+    param = MOTION_PARAMETERS.to_file_repr(parsed['parameter'])
     motion_on = int(parsed['motion_on'])
     smooth_on = int(parsed['smooth_on'])
-    raw = param << 8
-    raw = raw | motion_on
-    raw = raw | (smooth_on << 1)
+    file_repr = param << 8
+    file_repr = file_repr | motion_on
+    file_repr = file_repr | (smooth_on << 1)
 
-    return raw
+    return file_repr
 
 class NestedConv(Conv):
   def __init__(self, structure):
     self.structure = structure
 
-  def from_raw(self, raw):
-    return unpack(raw, self.structure)
+  def from_file_repr(self, file_repr):
+    return unpack(file_repr, self.structure)
 
-  def to_raw(self, parsed):
+  def to_file_repr(self, parsed):
     return pack(parsed, self.structure)
 
 def pitch_cents(value):
@@ -504,15 +504,15 @@ def unpack(binary, structure):
 
   res = collections.OrderedDict()
 
-  for i,raw in enumerate(unpacked):
+  for i,file_repr in enumerate(unpacked):
     name = structure[i][0]
 
-    val = raw
+    val = file_repr
 
     if len(structure[i]) >= 3:
       # apply conv
       conv = structure[i][2]
-      val = conv.from_raw(raw)
+      val = conv.from_file_repr(file_repr)
 
     res[name] = val
 
@@ -521,7 +521,7 @@ def unpack(binary, structure):
 def pack(data, structure):
   format_string = ''.join(map(lambda x: x[1], structure))
 
-  raw_values = []
+  file_repr_values = []
 
   for field in structure:
     name = field[0]
@@ -530,11 +530,11 @@ def pack(data, structure):
     if len(field) >= 3:
       # invert conv
       conv = field[2]
-      p = conv.to_raw(p)
+      p = conv.to_file_repr(p)
 
-    raw_values.append(p)
+    file_repr_values.append(p)
 
-  return struct.pack(format_string, *raw_values)
+  return struct.pack(format_string, *file_repr_values)
 
 def assert_header(file_content):
   try:
