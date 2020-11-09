@@ -2,7 +2,7 @@
 
 Some utilties for working with minilogue xd patches and libraries
 
-# Pretty print patch file
+## Pretty print patch file
 `python dump.py my_patch.mnlgxdprog`
 
 or
