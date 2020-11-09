@@ -4,40 +4,12 @@ Much of this file is taken and modified from https://gist.github.com/gekart/b187
 Thank you @gekart!
 '''
 
-import collections, struct, traceback, inspect
-from conv import *
+import collections
 import json
+import traceback
 
-# 124 is an unknown value used in a factory preset
-MOTION_PARAMETERS = DictConv({0 : 'NONE', 15 : 'PORTAMENTO', 16 : 'VOICE MODE: DEPTH', 17 : 'VOICE MODE: TYPE', 18 : 'VCO1: WAVE', 19 : 'VCO1: OCTAVE', 20 : 'VCO1: PITCH', 21 : 'VCO1: SHAPE', 22 : 'VCO2: WAVE', 23 : 'VCO2: OCTAVE', 24 : 'VCO2: PITCH', 25 : 'VCO2: SHAPE', 26 : 'SYNC', 27 : 'RING', 28 : 'CROSS MOD DEPTH', 29 : 'MULTI ENGINE: TYPE', 30 : 'MULTI ENGINE: NOISE TYPE', 31 : 'MULTI ENGINE: VPM TYPE', 33 : 'MULTI SHAPE: NOISE', 34 : 'MULTI SHAPE: VPM', 35 : 'MULTI SHAPE: USER', 36 : 'MULTI SHIFT SHAPE: NOISE', 37 : 'MULTI SHIFT SHAPE: VPM', 38 : 'MULTI SHIFT SHAPE: USER', 39 : 'VCO1: LEVEL', 40 : 'VCO2: LEVEL', 41 : 'MULTI ENGINE: LEVEL', 42 : 'CUTOFF', 43 : 'RESONANCE', 45 : 'KEYTRACK', 46 : 'AMP EG: ATTACK', 47 : 'AMP EG: DECAY', 48 : 'AMP EG: SUSTAIN', 49 : 'AMP EG: RELEASE', 50 : 'EG: ATTACK', 51 : 'EG: DECAY', 52 : 'EG: INT', 53 : 'EG: TARGET', 54 : 'LFO: WAVE', 55 : 'LFO: MODE', 56 : 'LFO: RATE', 57 : 'LFO: INT', 58 : 'LFO: TARGET', 59 : 'MOD FX: ON/OFF', 66 : 'MOD FX: TIME', 67 : 'MOD FX: DEPTH', 68 : 'DELAY: ON/OFF', 70 : 'DELAY: TIME', 71 : 'DELAY: DEPTH', 72 : 'REVERB: ON/OFF', 74 : 'REVERB: TIME', 75 : 'REVERB: DEPTH', 124: '???', 126 : 'PITCH BEND', 129 : 'GATE TIME'})
-
-class MotionParameter(Conv):
-
-  def from_file_repr(self, file_repr):
-    param = MOTION_PARAMETERS.from_file_repr(file_repr >> 8)
-    motion_on = bool(file_repr & 1)
-    smooth_on = bool((file_repr & 2) >> 1)
-    return collections.OrderedDict([('parameter', param), ('motion_on', motion_on), ('smooth_on', smooth_on)])
-
-  def to_file_repr(self, parsed):
-    param = MOTION_PARAMETERS.to_file_repr(parsed['parameter'])
-    motion_on = int(parsed['motion_on'])
-    smooth_on = int(parsed['smooth_on'])
-    file_repr = param << 8
-    file_repr = file_repr | motion_on
-    file_repr = file_repr | (smooth_on << 1)
-
-    return file_repr
-
-class NestedConv(Conv):
-  def __init__(self, structure):
-    self.structure = structure
-
-  def from_file_repr(self, file_repr):
-    return unpack(file_repr, self.structure)
-
-  def to_file_repr(self, parsed):
-    return pack(parsed, self.structure)
+from conv import *
+import parser
 
 def pitch_cents(value):
   if 0 <= value <= 4:
@@ -75,8 +47,8 @@ def eg_int(val):
   if 1013 <= val <= 1023:
     return '100%'
 
-def lfo_rate(data, val):
-  if data['lfo_mode'] == 'BPM':
+def lfo_rate(parsed, val):
+  if parsed['lfo_mode'] == 'BPM':
     if 0 <= val <= 63:
       return '4'
     if 64 <= val <= 127:
@@ -165,23 +137,24 @@ CHORD_RD = [
   (1023, 'Maj7b5')
 ]
 
-def voice_mode_depth(data, val):
-  if data['voice_mode_type'] == 'ARP':
+def voice_mode_depth(parsed, val):
+  voice_mode_type = parsed['voice_mode_type']
+  if voice_mode_type == 'ARP':
     return range_dict(ARP_RD, val)
 
-  if data['voice_mode_type'] == 'CHORD':
+  if voice_mode_type == 'CHORD':
     return range_dict(CHORD_RD, val)
 
-  if data['voice_mode_type'] == 'UNISON':
+  if voice_mode_type == 'UNISON':
     return str(val * 50 / 1023) + ' Cent'
 
-  if data['voice_mode_type'] == 'POLY':
+  if voice_mode_type == 'POLY':
     if val < 256:
       return 'POLY'
     else:
       return 'DUO' + str(val * 50 / 1023) + ' Cent'
 
-  raise ValueError('Unrecognized voice mode state')
+  raise ValueError('Unrecognized voice mode: {}'.fomrat(voice_mode_type))
 
 def add_sign(val):
   res = ''
@@ -207,12 +180,12 @@ def user_param_curry(i):
     return user_param(data, val, i)
   return tmp
 
-def user_param(data, val, i):
+def user_param(parsed, val, i):
   if not 1 <= i <= 6:
     raise ValueError("Invalid user param: " + str(i))
 
   shift_by = (i - 1) * 2
-  param_type = (data['user_param_type'] >> shift_by) & 3
+  param_type = (parsed['user_param_type'] >> shift_by) & 3
 
   if param_type == 0:
     # normal percent
@@ -237,31 +210,171 @@ def pct1023(val):
 
 HEADER_SCHEMA = ('magic','<4s', Conv(), None)
 
+MOTION_PARAMETERS = DictConv({
+  0   : 'NONE',
+  15  : 'PORTAMENTO',
+  16  : 'VOICE MODE: DEPTH',
+  17  : 'VOICE MODE: TYPE',
+  18  : 'VCO1: WAVE',
+  19  : 'VCO1: OCTAVE',
+  20  : 'VCO1: PITCH',
+  21  : 'VCO1: SHAPE',
+  22  : 'VCO2: WAVE',
+  23  : 'VCO2: OCTAVE',
+  24  : 'VCO2: PITCH',
+  25  : 'VCO2: SHAPE',
+  26  : 'SYNC',
+  27  : 'RING',
+  28  : 'CROSS MOD DEPTH',
+  29  : 'MULTI ENGINE: TYPE',
+  30  : 'MULTI ENGINE: NOISE TYPE',
+  31  : 'MULTI ENGINE: VPM TYPE',
+  33  : 'MULTI SHAPE: NOISE',
+  34  : 'MULTI SHAPE: VPM',
+  35  : 'MULTI SHAPE: USER',
+  36  : 'MULTI SHIFT SHAPE: NOISE',
+  37  : 'MULTI SHIFT SHAPE: VPM',
+  38  : 'MULTI SHIFT SHAPE: USER',
+  39  : 'VCO1: LEVEL',
+  40  : 'VCO2: LEVEL',
+  41  : 'MULTI ENGINE: LEVEL',
+  42  : 'CUTOFF',
+  43  : 'RESONANCE',
+  45  : 'KEYTRACK',
+  46  : 'AMP EG: ATTACK',
+  47  : 'AMP EG: DECAY',
+  48  : 'AMP EG: SUSTAIN',
+  49  : 'AMP EG: RELEASE',
+  50  : 'EG: ATTACK',
+  51  : 'EG: DECAY',
+  52  : 'EG: INT',
+  53  : 'EG: TARGET',
+  54  : 'LFO: WAVE',
+  55  : 'LFO: MODE',
+  56  : 'LFO: RATE',
+  57  : 'LFO: INT',
+  58  : 'LFO: TARGET',
+  59  : 'MOD FX: ON/OFF',
+  66  : 'MOD FX: TIME',
+  67  : 'MOD FX: DEPTH',
+  68  : 'DELAY: ON/OFF',
+  70  : 'DELAY: TIME',
+  71  : 'DELAY: DEPTH',
+  72  : 'REVERB: ON/OFF',
+  74  : 'REVERB: TIME',
+  75  : 'REVERB: DEPTH',
+  124 : '???', # 124 is an unknown value used in a factory preset
+  126 : 'PITCH BEND',
+  129 : 'GATE TIME'
+})
+
+class MotionParameter(Conv):
+
+  def from_file_repr(self, file_repr):
+    param = MOTION_PARAMETERS.from_file_repr(file_repr >> 8)
+    motion_on = bool(file_repr & 1)
+    smooth_on = bool((file_repr & 2) >> 1)
+    return collections.OrderedDict([('parameter', param), ('motion_on', motion_on), ('smooth_on', smooth_on)])
+
+  def to_file_repr(self, parsed):
+    param = MOTION_PARAMETERS.to_file_repr(parsed['parameter'])
+    motion_on = int(parsed['motion_on'])
+    smooth_on = int(parsed['smooth_on'])
+    file_repr = param << 8
+    file_repr = file_repr | motion_on
+    file_repr = file_repr | (smooth_on << 1)
+
+    return file_repr
+
 VOICE_MODES = ListConv(['NONE', 'ARP', 'CHORD', 'UNISON','POLY'])
+
 VCO_WAVES = ListConv(['SQR', 'TRI', 'SAW'])
+
 OCTAVE_FEET = ListConv([16, 8, 4, 2])
+
 MULTI_TYPES = ListConv(['NOISE','VPM','USER'])
+
 NOISE_TYPES = ListConv(['HIGH','LOW','PEAK','DECIM'])
-VPM_WAVES = ListConv(['SIN1','SIN2','SIN3','SIN4','SAW1','SAW2','SQU1','SQU2','FAT1','FAT2','AIR1','AIR2','DECAY1','DECAY2','CREEP','THROAT'])
+
+VPM_WAVES = ListConv(['SIN1','SIN2','SIN3','SIN4','SAW1','SAW2','SQU1','SQU2','FAT1','FAT2',
+                      'AIR1','AIR2','DECAY1','DECAY2','CREEP','THROAT'])
+
 DRIVE = ListConv([0, 50, 100])
+
 TRACK = ListConv([0, 50, 100])
+
 EG_TARGETS = ListConv(['CUTOFF', 'PITCH2', 'PITCH'])
+
 LFO_MODES = ListConv(['1-SHOT','NORMAL','BPM'])
+
 LFO_TARGETS = ListConv(['CUTOFF', 'SHAPE', 'PITCH'])
+
 MOD_FX_TYPES = ListConv(['NONE', 'CHORUS','ENSEMBLE','PHASER','FLANGER','USER'])
+
 CHORUS_TYPES = ListConv(['STEREO','LIGHT','DEEP','TRIPHASE','HARMONIC','MONO','FEEDBACK','VIBRATO'])
+
 ENSEMBLE_TYPES = ListConv(['STEREO','LIGHT','MONO'])
+
 PHASER_TYPES = ListConv(['STEREO','FAST','ORANGE','SMALL','SMALL RESO','BLACK','FORMANT','TWINKLE'])
+
 FLANGER_TYPES = ListConv(['STEREO','LIGHT','MONO','HIGH SWEEP','MID SWEEP','PAN SWEEP','MONO SWEEP','TRIPHASE'])
-DELAY_TYPES = ListConv(['STEREO','MONO','PING PONG','HIPASS','TAPE','ONE TAP','STEREO BPM','MONO BPM','PING BPM','HIPASS BPM','TAPE BPM','DOUBLING','USER1','USER2','USER3','USER4','USER5','USER6','USER7','USER8'])
-REVERB_TYPES = ListConv(['HALL','SMOOTH','ARENA','PLATE','ROOM','EARLY REF','SPACE','RISER','SUBMARINE','HORROR','USER1','USER2','USER3','USER4','USER5','USER6','USER7','USER8'])
+
+DELAY_TYPES = ListConv(['STEREO','MONO','PING PONG','HIPASS','TAPE','ONE TAP','STEREO BPM','MONO BPM',
+                        'PING BPM','HIPASS BPM','TAPE BPM','DOUBLING','USER1','USER2','USER3','USER4',
+                        'USER5','USER6','USER7','USER8'])
+
+REVERB_TYPES = ListConv(['HALL','SMOOTH','ARENA','PLATE','ROOM','EARLY REF','SPACE','RISER','SUBMARINE','HORROR',
+                         'USER1','USER2','USER3','USER4','USER5','USER6','USER7','USER8'])
+
 CV_IN_MODES = ListConv(['MODULATION','CV GATE +','CV GATE -'])
-ASSIGN_PARAMETERS = ListConv(['GATE TIME','PORTAMENTO','VOICE MODE: DEPTH','VCO1: PITCH','VCO1: SHAPE','VCO2: PITCH','VCO2: SHAPE','CROSS MOD','MULTI: SHAPE','VCO1: LEVEL','VCO2: LEVEL','MULTI: LEVEL','CUTOFF','RESONANCE','AMP EG: ATTACK','AMP EG: DECAY','AMP EG: SUSTAIN','AMP EG: RELEASE','EG: ATTACK','EG: DECAY','EG: INT','LFO: RATE','LFO: INT','MOD FX: SPEED','MOD FX: DEPTH','REVERB: TIME','REVERB: DEPTH','DELAY: TIME','DELAY: DEPTH'])
-MICRO_TUNING = DictConv({0 : 'EQUAL TEMP', 1 : 'PURE MAJOR', 2 : 'PURE MINOR', 3 : 'PYTHAGOREAN', 4 : 'WERCKMEISTER', 5 : 'KIRNBURGER', 6 : 'SLENDRO', 7 : 'PELOG', 8 : 'IONIAN', 9 : 'DORIAN', 10 : 'AEOLIAN', 11 : 'MAJOR PENTA', 12 : 'MINOR PENTA', 13 : 'REVERSE', 14 : 'AFX001', 15 : 'AFX002', 16 : 'AFX003', 17 : 'AFX004', 18 : 'AFX005', 19 : 'AFX006', 128 : 'USER SCALE 1', 129 : 'USER SCALE 2', 130 : 'USER SCALE 3', 131 : 'USER SCALE 4', 132 : 'USER SCALE 5', 133 : 'USER SCALE 6', 134 : 'USER OCTAVE 1', 135 : 'USER OCTAVE 2', 136 : 'USER OCTAVE 3', 137 : 'USER OCTAVE 4', 138 : 'USER OCTAVE 5', 139 : 'USER OCTAVE 6'})
+
+ASSIGN_PARAMETERS = ListConv(['GATE TIME','PORTAMENTO','VOICE MODE: DEPTH','VCO1: PITCH','VCO1: SHAPE',
+                              'VCO2: PITCH','VCO2: SHAPE','CROSS MOD','MULTI: SHAPE','VCO1: LEVEL','VCO2: LEVEL',
+                              'MULTI: LEVEL','CUTOFF','RESONANCE','AMP EG: ATTACK','AMP EG: DECAY',
+                              'AMP EG: SUSTAIN','AMP EG: RELEASE','EG: ATTACK','EG: DECAY','EG: INT',
+                              'LFO: RATE','LFO: INT','MOD FX: SPEED','MOD FX: DEPTH','REVERB: TIME','REVERB: DEPTH',
+                              'DELAY: TIME','DELAY: DEPTH'])
+
+MICRO_TUNING = DictConv({
+  0 : 'EQUAL TEMP',
+  1 : 'PURE MAJOR',
+  2 : 'PURE MINOR',
+  3 : 'PYTHAGOREAN',
+  4 : 'WERCKMEISTER',
+  5 : 'KIRNBURGER',
+  6 : 'SLENDRO',
+  7 : 'PELOG',
+  8 : 'IONIAN',
+  9 : 'DORIAN',
+  10 : 'AEOLIAN',
+  11 : 'MAJOR PENTA',
+  12 : 'MINOR PENTA',
+  13 : 'REVERSE',
+  14 : 'AFX001',
+  15 : 'AFX002',
+  16 : 'AFX003',
+  17 : 'AFX004',
+  18 : 'AFX005',
+  19 : 'AFX006',
+  128 : 'USER SCALE 1',
+  129 : 'USER SCALE 2',
+  130 : 'USER SCALE 3',
+  131 : 'USER SCALE 4',
+  132 : 'USER SCALE 5',
+  133 : 'USER SCALE 6',
+  134 : 'USER OCTAVE 1',
+  135 : 'USER OCTAVE 2',
+  136 : 'USER OCTAVE 3',
+  137 : 'USER OCTAVE 4',
+  138 : 'USER OCTAVE 5',
+  139 : 'USER OCTAVE 6'
+})
+
 LFO_TARGET_OSC = ListConv(['ALL','VCO1 + VCO2','VCO2','MULTI'])
 MULTI_ROUTING = ListConv(['PRE VCF', 'POST VCF'])
 PORTAMENTO_MODE = ListConv(['AUTO', 'ON'])
 STEP_RESOLUTIONS = ListConv(['1/16','1/8','1/4','1/2','1/1'])
+
 
 STEP_EVENT_SCHEMA = [
   ('note_1', '<B'),
@@ -341,11 +454,11 @@ FILE_SCHEMA = [
   ('multi_noise_type','B', NOISE_TYPES),
   ('multi_vpm_wave','B', VPM_WAVES),
   ('multi_user_osc','B', AddConv(1), lambda x : 'USER{}'.format(x)),
-  ('multi_shape_noise','H', Conv(), pct1023), # actually varies by noise type
-  ('multi_shape_vpm','H', Conv(), pct1023), # actually mod depth
+  ('multi_shape_noise','H', Conv(), pct1023), # TODO: actually varies by noise type
+  ('multi_shape_vpm','H', Conv(), pct1023), # TODO: actually mod depth
   ('multi_shape_user','H', Conv(), pct1023),
-  ('multi_shift_shape_noise','H', Conv(), pct1023), # actually varies by noise type
-  ('multi_shift_shape_vpm','H', Conv(), pct1023), # actually ratio offset
+  ('multi_shift_shape_noise','H', Conv(), pct1023), # TODO: actually varies by noise type
+  ('multi_shift_shape_vpm','H', Conv(), pct1023), # TODO: actually ratio offset
   ('multi_shift_shape_user_osc','H', Conv(), pct1023),
   ('vco_1_level','H'),
   ('vco_2_level','H'),
@@ -464,81 +577,9 @@ FILE_SCHEMA = [
   ('arp_rate','B')
 ]
 
-class Parsed(object):
-  def __init__(self, schema, data):
-    self.schema = schema
-    self.data = data
-
-  def __getitem__(self, key):
-    return self.data[key]
-
-  def __setitem__(self, key, value):
-    self.data[key] = value
-
-  def serialize(self):
-    return pack(self.data, self.schema)
-
-  def nice_string(self):
-    printers = dict((x[0], x[3]) for x in self.schema if len(x) >= 4)
-
-    lines = []
-    for k,v in self.data.iteritems():
-      pp = printers.get(k, lambda x : str(x))
-
-      if pp:
-        if len(inspect.getargspec(pp).args) == 1:
-          ppv = pp(v)
-        else:
-          ppv = pp(self.data, v)
-
-        lines.append('{} => {}'.format(k, ppv))
-
-    return '\n'.join(lines)
-
-def unpack(binary, structure):
-  format_string = ''.join(map(lambda x: x[1], structure))
-  unpacked = struct.unpack(format_string, binary)
-
-  if len(unpacked) != len(structure):
-    raise ValueError('Expected to get back %d elements from struct.unpack but got %d' % (len(structure), len(unpacked)))
-
-  res = collections.OrderedDict()
-
-  for i,file_repr in enumerate(unpacked):
-    name = structure[i][0]
-
-    val = file_repr
-
-    if len(structure[i]) >= 3:
-      # apply conv
-      conv = structure[i][2]
-      val = conv.from_file_repr(file_repr)
-
-    res[name] = val
-
-  return res
-
-def pack(data, structure):
-  format_string = ''.join(map(lambda x: x[1], structure))
-
-  file_repr_values = []
-
-  for field in structure:
-    name = field[0]
-    p = data[name]
-
-    if len(field) >= 3:
-      # invert conv
-      conv = field[2]
-      p = conv.to_file_repr(p)
-
-    file_repr_values.append(p)
-
-  return struct.pack(format_string, *file_repr_values)
-
 def assert_header(file_content):
   try:
-    magic = unpack(file_content[:4], [HEADER_SCHEMA])
+    magic = parser.parse(file_content[:4], [HEADER_SCHEMA])
   except:
     traceback.print_exc()
     raise ValueError('Could not unpack magic hader from file, is this in invalid file?')
@@ -546,15 +587,15 @@ def assert_header(file_content):
   if magic['magic'] != 'PROG':
     raise ValueError('File does not begin with magic header PROG')
 
-def deserialize(file_content):
+def parse(file_content):
 
   # first look for magic header as sanity check
   assert_header(file_content)
 
-  unpacked = unpack(file_content, FILE_SCHEMA)
+  parsed = parser.parse(file_content, FILE_SCHEMA)
 
   # seems unlikely but check the magic field again anyway
-  if (unpacked['magic'] != 'PROG'):
+  if (parsed['magic'] != 'PROG'):
     raise ValueError('This doesn\'t look like a valid file, magic PROG header incorrect')
 
-  return Parsed(FILE_SCHEMA, unpacked)
+  return parsed

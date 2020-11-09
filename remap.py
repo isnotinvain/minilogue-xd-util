@@ -1,5 +1,4 @@
 import sys
-import xd_prog_bin
 import mnlgxdprog
 import json
 
@@ -36,4 +35,4 @@ if 'osc' in remap:
   if curr in osc:
     patch['multi_user_osc'] = osc[curr]
 
-print patch.nice_string()
+print patch.pretty_print()

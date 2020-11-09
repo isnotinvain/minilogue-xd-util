@@ -1,5 +1,4 @@
 import sys
-import xd_prog_bin
 import mnlgxdprog
 
 USAGE = '\n'.join([
@@ -21,4 +20,4 @@ if file_path.endswith('mnlgxdlib'):
 
 patch = mnlgxdprog.extract_patch(file_path, patch_number)
 
-print patch.nice_string()
+print patch.pretty_print()

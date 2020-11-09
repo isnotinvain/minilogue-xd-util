@@ -12,8 +12,8 @@ def extract_patch_bin(file_path, patch_number = 0):
   return mnlgxdlib.extract_patch_bin(file_path, patch_number)
 
 def extract_patch(file_path, patch_number = 0):
-  return xd_prog_bin.deserialize(extract_patch_bin(file_path, patch_number))
+  return xd_prog_bin.parse(extract_patch_bin(file_path, patch_number))
 
 def write(patch, file_path):
-  patch_bin = xd_prog_bin.serialize(patch)
+  patch_bin = patch.serialize()
   mnlgxdlib.write_single_patch(patch_bin, file_path)

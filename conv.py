@@ -1,3 +1,5 @@
+import parser
+
 '''
 Conv converts a value from it's on-file represnetion to a more
 programmer / python friendly value. This transform should be loss-less,
@@ -69,6 +71,7 @@ class BitFlags(Conv):
 
   def from_file_repr(self, file_repr):
     # to binary string, then reverse
+    # TODO: this needs confirming
     bits = ("{:016b}".format(file_repr))[::-1]
     return [bool(int(x)) for x in bits]
 
@@ -77,3 +80,13 @@ class BitFlags(Conv):
     bits = [str(int(x)) for x in idiomatic][::-1]
     bits_str = ''.join(bits)
     return int(bits_str, 2) # parse binary string
+
+class NestedConv(Conv):
+  def __init__(self, schema):
+    self.schema = schema
+
+  def from_file_repr(self, file_repr):
+    return parser.parse(file_repr, self.schema)
+
+  def to_file_repr(self, parsed):
+    return parsed.serialize()
