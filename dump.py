@@ -1,11 +1,13 @@
 import sys
 import mnlgxdprog
 
+import cmdline_util
+
 USAGE = '\n'.join([
   'Usage:',
   'python dump.py my_patch.mnlgxdprog',
-  'python dump.py my_lib.mnlgxdlib <patch_number>',
-  'Where <patch_number> is the patch to dump, starting at 1 for the first patch'
+  'python dump.py my_lib.mnlgxdlib <patch_expr>',
+  'Where <patch_expr> is the patch to dump, starting at 1 for the first patch, or a range in the form 1:100 (inclusive)'
 ])
 
 if len(sys.argv) < 2:
@@ -13,16 +15,14 @@ if len(sys.argv) < 2:
 
 file_path = sys.argv[1]
 
-patch_number = 0
-
 if file_path.endswith('mnlgxdlib'):
   if len(sys.argv) < 3:
     raise ValueError(Usage)
-  pn = int(sys.argv[2])
-  if pn <= 0:
-    raise ValueError('Patch number must be >= 1')
-  patch_number = pn - 1
+  patch_numbers = cmdline_util.patch_number_expr(sys.argv[2])
+else:
+  patch_numbers = xrange(0 , 1)
 
-patch = mnlgxdprog.extract_patch(file_path, patch_number)
-
-print patch.pretty_print()
+for patch in patch_numbers:
+  patch = mnlgxdprog.extract_patch(file_path, patch)
+  print patch.pretty_print()
+  print

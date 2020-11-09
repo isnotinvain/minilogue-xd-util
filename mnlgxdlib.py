@@ -5,6 +5,7 @@ This file works with the mnlgxdlib zip file container for minilogue xd library f
 import os
 import re
 import traceback
+import tempfile
 import zipfile
 
 import fileinformation
@@ -37,6 +38,29 @@ def extract_all_patch_bins(file_path):
           res.append((n, file.read(n)))
 
   return res
+
+def overwrite_files(file_path, new_files, new_out_file):
+  if os.path.exists(new_out_file):
+    raise ValueError('File already exists: {}'.format(new_out_file))
+
+  temp = tempfile.mkdtemp()
+  copy = os.path.join(temp, 'copy')
+  os.mkdir(copy)
+
+  with zipfile.ZipFile(file_path, mode='r') as orig:
+    orig.extractall(copy)
+
+  for f,f_bin in new_files.iteritems():
+    with open(os.path.join(copy, f), 'w') as new_f:
+      new_f.write(f_bin)
+
+  new_zip_path = os.path.join(temp, 'zipped.zip')
+
+  with zipfile.ZipFile(new_zip_path, mode='w') as new_zip:
+    for f in os.listdir(copy):
+      new_zip.write(os.path.join(copy, f), f)
+
+  os.rename(new_zip_path, new_out_file)
 
 def write_single_patch(patch_bin, file_path):
   with zipfile.ZipFile(file_path, mode='w') as zip_file:
