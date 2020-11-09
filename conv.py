@@ -1,5 +1,3 @@
-import parser
-
 '''
 Conv converts a value from it's on-file represnetion to a more
 programmer / python friendly value. This transform should be loss-less,
@@ -10,6 +8,12 @@ their actual numeric value (applying any shifts needed)
 but only if that can be done losslessly, and
 enum-like types to strings. Bitsets are converted to lists of true/false.
 '''
+
+import parser
+
+'''
+Conv() on its own is a no-op
+'''
 class Conv(object):
   def from_file_repr(self, file_repr):
     return file_repr
@@ -17,6 +21,11 @@ class Conv(object):
   def to_file_repr(self, idiomatic):
     return idiomatic
 
+'''
+Treats the file representation as the index into a list.
+Used for all the enum-like fields, more convenient than DictConv for
+contiguous values.
+'''
 class ListConv(Conv):
   def __init__(self, items):
     self.items = items
@@ -29,6 +38,10 @@ class ListConv(Conv):
   def to_file_repr(self, idiomatic):
     return self.items.index(idiomatic)
 
+'''
+Treats the file representation as the key in a dictionary.
+Used for all the enum-like fields that aren't contiguous.
+'''
 class DictConv(Conv):
   def __init__(self, d):
     self.d = d
@@ -40,6 +53,12 @@ class DictConv(Conv):
   def to_file_repr(self, idiomatic):
     return self.d_inv[idiomatic]
 
+'''
+Adds `amount` to the file representation.
+For numeric types that need to be offset by a certain amount.
+A lot of file representations are 0 indexed in the file but 1 indexed in the minilogue xd LED display.
+Also some of the file representations are unsigned, offset by 100 or similar to support negative values.
+'''
 class AddConv(Conv):
   def __init__(self, amount):
     self.amount = amount
@@ -50,6 +69,10 @@ class AddConv(Conv):
   def to_file_repr(self, idiomatic):
     return idiomatic - self.amount
 
+'''
+Same as AddConv but multiplies by an amount instead of adds.
+In order to be lossless should only use integers.
+'''
 class MulConv(Conv):
   def __init__(self, amount):
     self.amount = amount
@@ -60,6 +83,10 @@ class MulConv(Conv):
   def to_file_repr(self, idiomatic):
     return idiomatic / self.amount
 
+'''
+0 means False
+1 means True
+'''
 class BoolConv(Conv):
   def from_file_repr(self, file_repr):
     return bool(file_repr)
@@ -67,6 +94,12 @@ class BoolConv(Conv):
   def to_file_repr(self, idiomatic):
     return int(idiomatic)
 
+'''
+For when the file representation is a bitset / bitflag which is annoying to work
+with in python. Converts the int bitset to a list of True/False.
+
+TODO: Not sure if this gets the order backwards or not yet.
+'''
 class BitFlags(Conv):
 
   def from_file_repr(self, file_repr):
@@ -81,6 +114,10 @@ class BitFlags(Conv):
     bits_str = ''.join(bits)
     return int(bits_str, 2) # parse binary string
 
+'''
+For the parts of the file that are nested / have sub-structures.
+Given a schema, will parse the field's bytes using parser.parse
+'''
 class NestedConv(Conv):
   def __init__(self, schema):
     self.schema = schema
