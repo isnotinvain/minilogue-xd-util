@@ -1,10 +1,11 @@
 '''
 This file works with the mnlgxdlib zip file container for minilogue xd library files.
 '''
-import zipfile
-import traceback
+
 import os
 import re
+import traceback
+import zipfile
 
 import fileinformation
 

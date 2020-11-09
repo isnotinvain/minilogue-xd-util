@@ -4,7 +4,9 @@ mnlgxdprog files are essentially mnlgxdlib files with fewer items in them, so mo
 delegates to mnlgxdlib.py
 '''
 
-import zipfile, traceback
+import traceback
+import zipfile
+
 import xd_prog_bin
 import mnlgxdlib
 

@@ -1,3 +1,6 @@
+'''
+# TODO: use a test framework / runner
+'''
 import os
 import mnlgxdprog
 import mnlgxdlib
