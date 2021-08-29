@@ -9,7 +9,7 @@ import json
 import traceback
 
 from conv import *
-import parser
+import korgparser as parser
 
 def pitch_cents(value):
   if 0 <= value <= 4:
@@ -392,10 +392,10 @@ def pp_note(n):
 
 def pp_steps(parsed, ignored):
   steps = []
-  for i in xrange(1, 16):
+  for i in range(1, 16):
     data = parsed['step_{}_event_data'.format(i)]
     notes = []
-    for n in xrange(1, 8):
+    for n in range(1, 8):
       note = data['note_{}'.format(n)]
       vel = data['velocity_{}'.format(n)]
       if vel:
@@ -611,7 +611,8 @@ def assert_header(file_content):
     traceback.print_exc()
     raise ValueError('Could not unpack magic hader from file, is this in invalid file?')
 
-  if magic['magic'] != 'PROG':
+  if magic['magic'].decode("utf-8") != 'PROG':
+    print(magic['magic'])
     raise ValueError('File does not begin with magic header PROG')
 
 def parse(file_content):
@@ -622,7 +623,7 @@ def parse(file_content):
   parsed = parser.parse(file_content, FILE_SCHEMA)
 
   # seems unlikely but check the magic field again anyway
-  if (parsed['magic'] != 'PROG'):
+  if (parsed['magic'].decode("utf-8") != 'PROG'):
     raise ValueError('This doesn\'t look like a valid file, magic PROG header incorrect')
 
   return parsed

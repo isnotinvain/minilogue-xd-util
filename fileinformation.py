@@ -42,14 +42,14 @@ def look_for(f, files, kind, suffix = None):
     id = m.group(1)
     info = info_fmt.format(id)
     if not info in files:
-      print 'Warning! Missing: {}'.format(info)
+      print('Warning! Missing: {}'.format(info))
 
   m = re.match(info_re, f)
   if m:
     id = m.group(1)
     binf = bin_fmt.format(id)
     if not binf in files:
-      print 'Warning! Missing: {}'.format(binf)
+      print('Warning! Missing: {}'.format(binf))
 
   return found
 
@@ -78,7 +78,7 @@ def mk_file_info_xml_from_dir(dir_path):
       tune_oct_data = tune_oct_data + 1
 
     else:
-      print 'Warning! Unexpected file: {}'.format(f)
+      print('Warning! Unexpected file: {}'.format(f))
 
   return mk_file_info_xml(patch_files, has_fave_data, tune_scale_data, tune_oct_data)
 
