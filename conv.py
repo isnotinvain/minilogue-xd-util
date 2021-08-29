@@ -9,7 +9,7 @@ but only if that can be done losslessly, and
 enum-like types to strings. Bitsets are converted to lists of true/false.
 '''
 
-import parser
+import korgparser as parser
 
 '''
 Conv() on its own is a no-op
@@ -45,7 +45,7 @@ Used for all the enum-like fields that aren't contiguous.
 class DictConv(Conv):
   def __init__(self, d):
     self.d = d
-    self.d_inv = {v: k for k, v in d.iteritems()}
+    self.d_inv = {v: k for k, v in d.items()}
 
   def from_file_repr(self, file_repr):
     return self.d[file_repr]

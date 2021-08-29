@@ -20,9 +20,9 @@ if file_path.endswith('mnlgxdlib'):
     raise ValueError(Usage)
   patch_numbers = cmdline_util.patch_number_expr(sys.argv[2])
 else:
-  patch_numbers = xrange(0 , 1)
+  patch_numbers = range(0 , 1)
 
 for patch in patch_numbers:
   patch = mnlgxdprog.extract_patch(file_path, patch)
-  print patch.pretty_print()
-  print
+  print(patch.pretty_print())
+  print()
